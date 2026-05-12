@@ -1,0 +1,21 @@
+name: Debug Telegram
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test Telegram API
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          echo "Testing Telegram API..."
+          echo "Token length: ${#TELEGRAM_BOT_TOKEN}"
+          echo "Chat ID: $TELEGRAM_CHAT_ID"
+          curl -v "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe" 2>&1
+          echo "---"
+          curl -v -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\": \"${TELEGRAM_CHAT_ID}\", \"text\": \"Hello from TrendRadar!\"}" 2>&1
