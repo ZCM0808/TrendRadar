@@ -220,6 +220,30 @@ def _load_rss_config(config_data: Dict) -> Dict:
     }
 
 
+def _load_github_config(config_data: Dict) -> Dict:
+    """加载 GitHub 热门项目配置"""
+    github = config_data.get("github", {})
+    advanced = config_data.get("advanced", {})
+    advanced_crawler = advanced.get("crawler", {})
+
+    # GitHub 代理配置：优先使用 github.proxy_url，否则复用 crawler 的 default_proxy
+    github_proxy_url = github.get("proxy_url", "") or advanced_crawler.get("default_proxy", "")
+
+    return {
+        "ENABLED": github.get("enabled", False),
+        "TOKEN": _get_env_str("GITHUB_TOKEN") or github.get("token", ""),
+        "KEYWORDS": github.get("keywords", []),
+        "MIN_STARS": github.get("min_stars", 100),
+        "MAX_STARS": github.get("max_stars"),
+        "LANGUAGE": github.get("language"),
+        "PUSHED_AFTER": github.get("pushed_after"),
+        "TOTAL_PER_KEYWORD": github.get("total_per_keyword", 50),
+        "REQUEST_INTERVAL": github.get("request_interval", 2000),
+        "USE_PROXY": github.get("use_proxy", False),
+        "PROXY_URL": github_proxy_url,
+    }
+
+
 def _load_display_config(config_data: Dict) -> Dict:
     """加载推送内容显示配置"""
     display = config_data.get("display", {})
@@ -231,7 +255,7 @@ def _load_display_config(config_data: Dict) -> Dict:
     region_order = display.get("region_order", default_region_order)
 
     # 验证 region_order 中的值是否合法
-    valid_regions = {"hotlist", "rss", "new_items", "standalone", "ai_analysis"}
+    valid_regions = {"hotlist", "rss", "new_items", "standalone", "ai_analysis", "github"}
     region_order = [r for r in region_order if r in valid_regions]
 
     # 如果过滤后为空，使用默认顺序
@@ -248,6 +272,7 @@ def _load_display_config(config_data: Dict) -> Dict:
             "RSS": regions.get("rss", True),
             "STANDALONE": regions.get("standalone", False),
             "AI_ANALYSIS": regions.get("ai_analysis", True),
+            "GITHUB": regions.get("github", True),
         },
         # 独立展示区配置
         "STANDALONE": {
@@ -580,6 +605,9 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
 
     # RSS 配置
     config["RSS"] = _load_rss_config(config_data)
+
+    # GitHub 配置
+    config["GITHUB"] = _load_github_config(config_data)
 
     # AI 模型共享配置
     config["AI"] = _load_ai_config(config_data)

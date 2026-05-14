@@ -92,9 +92,10 @@ def send_to_feishu(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
+    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到飞书（支持分批发送，支持热榜+RSS合并+独立展示区）
+    发送到飞书（支持分批发送，支持热榜+RSS合并+GitHub+独立展示区）
 
     Args:
         webhook_url: 飞书 Webhook URL
@@ -152,6 +153,7 @@ def send_to_feishu(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
+        github_items=github_items,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -237,9 +239,10 @@ def send_to_dingtalk(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
+    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到钉钉（支持分批发送，支持热榜+RSS合并+独立展示区）
+    发送到钉钉（支持分批发送，支持热榜+RSS合并+GitHub+独立展示区）
 
     Args:
         webhook_url: 钉钉 Webhook URL
@@ -296,6 +299,7 @@ def send_to_dingtalk(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
+        github_items=github_items,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -366,9 +370,10 @@ def send_to_wework(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
+    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到企业微信（支持分批发送，支持 markdown 和 text 两种格式，支持热榜+RSS合并+独立展示区）
+    发送到企业微信（支持分批发送，支持 markdown 和 text 两种格式，支持热榜+RSS合并+GitHub+独立展示区）
 
     Args:
         webhook_url: 企业微信 Webhook URL
@@ -433,6 +438,7 @@ def send_to_wework(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
+        github_items=github_items,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -505,9 +511,10 @@ def send_to_telegram(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
+    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到 Telegram（支持分批发送，支持热榜+RSS合并+独立展示区）
+    发送到 Telegram（支持分批发送，支持热榜+RSS合并+GitHub+独立展示区）
 
     Args:
         bot_token: Telegram Bot Token
@@ -563,6 +570,7 @@ def send_to_telegram(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
+        github_items=github_items,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -791,9 +799,10 @@ def send_to_ntfy(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
+    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到 ntfy（支持分批发送，严格遵守4KB限制，支持热榜+RSS合并+独立展示区）
+    发送到 ntfy（支持分批发送，严格遵守4KB限制，支持热榜+RSS合并+GitHub+独立展示区）
 
     Args:
         server_url: ntfy 服务器 URL
@@ -872,6 +881,7 @@ def send_to_ntfy(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
+        github_items=github_items,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -993,9 +1003,10 @@ def send_to_bark(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
+    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到 Bark（支持分批发送，使用 markdown 格式，支持热榜+RSS合并+独立展示区）
+    发送到 Bark（支持分批发送，使用 markdown 格式，支持热榜+RSS合并+GitHub+独立展示区）
 
     Args:
         bark_url: Bark URL（包含 device_key）
@@ -1059,6 +1070,7 @@ def send_to_bark(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
+        github_items=github_items,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -1167,9 +1179,10 @@ def send_to_slack(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
+    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到 Slack（支持分批发送，使用 mrkdwn 格式，支持热榜+RSS合并+独立展示区）
+    发送到 Slack（支持分批发送，使用 mrkdwn 格式，支持热榜+RSS合并+GitHub+独立展示区）
 
     Args:
         webhook_url: Slack Webhook URL
@@ -1222,6 +1235,7 @@ def send_to_slack(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
+        github_items=github_items,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -1286,9 +1300,10 @@ def send_to_generic_webhook(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
+    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到通用 Webhook（支持分批发送，支持自定义 JSON 模板，支持热榜+RSS合并+独立展示区）
+    发送到通用 Webhook（支持分批发送，支持自定义 JSON 模板，支持热榜+RSS合并+GitHub+独立展示区）
 
     Args:
         webhook_url: Webhook URL
@@ -1347,6 +1362,7 @@ def send_to_generic_webhook(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
+        github_items=github_items,
     )
 
     # 统一添加批次头部

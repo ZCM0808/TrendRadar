@@ -919,6 +919,7 @@ class NewsAnalyzer:
         ai_result: Optional[AIAnalysisResult] = None,
         current_results: Optional[Dict] = None,
         schedule: ResolvedSchedule = None,
+        github_items: Optional[List[Dict]] = None,
     ) -> bool:
         """统一的通知发送逻辑，包含所有判断条件，支持热榜+RSS合并推送+AI分析+独立展示区"""
         has_notification = self._has_notification_configured()
@@ -991,6 +992,7 @@ class NewsAnalyzer:
                 ai_analysis=ai_result,
                 standalone_data=standalone_data,
                 skip_translation=True,
+                github_items=github_items,
             )
 
             if not results:
@@ -1185,6 +1187,66 @@ class NewsAnalyzer:
         except Exception as e:
             print(f"[RSS] 抓取失败: {e}")
             return None, None, None, set()
+
+    def _crawl_github_data(self) -> Optional[List[Dict]]:
+        """
+        执行 GitHub 热门项目扫描
+
+        Returns:
+            GitHub 项目列表（每个项目为 dict，包含 title, url, description, language, stars 等字段）
+            如果未启用或失败返回 None
+        """
+        github_config = self.ctx.config.get("GITHUB", {})
+        if not github_config.get("ENABLED", False):
+            return None
+
+        keywords = github_config.get("KEYWORDS", [])
+        if not keywords:
+            print("[GitHub] 未配置搜索关键词")
+            return None
+
+        try:
+            from trendradar.crawler.github import GitHubFetcher
+
+            # 确定代理配置
+            github_proxy_url = None
+            if github_config.get("USE_PROXY", False):
+                github_proxy_url = github_config.get("PROXY_URL", "") or self.proxy_url
+
+            fetcher = GitHubFetcher(
+                token=github_config.get("TOKEN", "") or None,
+                proxy_url=github_proxy_url,
+            )
+
+            results, id_to_name, failed_ids = fetcher.crawl_github_projects(
+                keywords=keywords,
+                min_stars=github_config.get("MIN_STARS", 100),
+                total_per_keyword=github_config.get("TOTAL_PER_KEYWORD", 50),
+                language=github_config.get("LANGUAGE"),
+                pushed_after=github_config.get("PUSHED_AFTER"),
+                request_interval=github_config.get("REQUEST_INTERVAL", 2000),
+            )
+
+            # 转换为列表格式
+            github_items = []
+            for title, data in results.items():
+                github_items.append({
+                    "title": title,
+                    "url": data.get("url", ""),
+                    "description": data.get("description", ""),
+                    "language": data.get("language", ""),
+                    "stars": data.get("stars", 0),
+                })
+
+            print(f"[GitHub] 共获取 {len(github_items)} 个项目")
+            return github_items
+
+        except ImportError as e:
+            print(f"[GitHub] 缺少依赖: {e}")
+            return None
+        except Exception as e:
+            print(f"[GitHub] 扫描失败: {e}")
+            return None
 
     def _process_rss_data_by_mode(self, rss_data) -> Tuple[Optional[List[Dict]], Optional[List[Dict]], Optional[List[Dict]], set]:
         """
@@ -1490,6 +1552,7 @@ class NewsAnalyzer:
         rss_new_items: Optional[List[Dict]] = None,
         raw_rss_items: Optional[List[Dict]] = None,
         rss_new_urls: Optional[set] = None,
+        github_items: Optional[List[Dict]] = None,
     ) -> Optional[str]:
         """执行模式特定逻辑，支持热榜+RSS合并推送
 
@@ -1692,6 +1755,7 @@ class NewsAnalyzer:
                 ai_result=ai_result,
                 current_results=results,
                 schedule=schedule,
+                github_items=github_items,
             )
 
         # 打开浏览器（仅在非容器环境）
@@ -1718,11 +1782,15 @@ class NewsAnalyzer:
             # 抓取 RSS 数据（如果启用），返回统计条目、新增条目和原始条目
             rss_items, rss_new_items, raw_rss_items, rss_new_urls = self._crawl_rss_data()
 
-            # 执行模式策略，传递 RSS 数据用于合并推送
+            # 抓取 GitHub 热门项目（如果启用）
+            github_items = self._crawl_github_data()
+
+            # 执行模式策略，传递 RSS 数据和 GitHub 数据用于合并推送
             self._execute_mode_strategy(
                 mode_strategy, results, id_to_name, failed_ids,
                 rss_items=rss_items, rss_new_items=rss_new_items,
-                raw_rss_items=raw_rss_items, rss_new_urls=rss_new_urls
+                raw_rss_items=raw_rss_items, rss_new_urls=rss_new_urls,
+                github_items=github_items,
             )
 
         except Exception as e:
