@@ -136,6 +136,42 @@ rss:
 
 
 # ===============================================================
+# 3.5 数据源 - GitHub 热门项目
+#
+# 扫描 GitHub 上的热门开源项目，按关键词和星标数筛选
+# 与热榜数据分开存储
+# ===============================================================
+github:
+  enabled: true                       # 是否启用 GitHub 扫描
+
+  # GitHub Personal Access Token（可选，提高速率限制）
+  # 无 Token: 60 次/小时
+  # 有 Token: 5000 次/小时
+  # 获取地址: https://github.com/settings/tokens
+  token: ""                           # 建议使用环境变量 GITHUB_TOKEN
+
+  # 搜索关键词列表
+  keywords:
+    - "AI"
+    - "LLM"
+    - "machine learning"
+
+  # 筛选条件
+  min_stars: 100                      # 最低星标数
+  max_stars: null                     # 最高星标数（null=不限制）
+  language: null                      # 编程语言（null=所有语言）
+  pushed_after: "2025-01-01"          # 最近更新时间（YYYY-MM-DD）
+
+  # 扫描数量
+  total_per_keyword: 50               # 每个关键词扫描数量
+
+  # 请求设置
+  request_interval: 2000              # 请求间隔（毫秒）
+  use_proxy: false                    # 是否使用代理
+  proxy_url: ""                       # 代理地址（留空则使用 crawler.default_proxy）
+
+
+# ===============================================================
 # 4. 报告模式
 #
 # 新手 5 行：
@@ -251,11 +287,12 @@ display:
   #   1. 在此列表中
   #   2. 下方 regions 中对应开关为 true
   region_order:
-    - new_items                           # 1️⃣ 新增热点区域
-    - hotlist                             # 2️⃣ 热榜区域（关键词匹配 / AI 智能筛选）
-    - rss                                 # 3️⃣ RSS 订阅区域
-    - standalone                          # 4️⃣ 独立展示区
-    - ai_analysis                         # 5️⃣ AI 分析区域
+    - github                              # 1️⃣ GitHub 热门项目区域
+    - new_items                           # 2️⃣ 新增热点区域
+    - hotlist                             # 3️⃣ 热榜区域（关键词匹配 / AI 智能筛选）
+    - rss                                 # 4️⃣ RSS 订阅区域
+    - standalone                          # 5️⃣ 独立展示区
+    - ai_analysis                         # 6️⃣ AI 分析区域
 
   # 推送区域开关
   # 控制各区域是否启用（配合 region_order 使用）
@@ -269,6 +306,7 @@ display:
                                       # 关闭后跳过分析，但独立展示区不受影响
 
     standalone: false                 # 独立展示区（完整热榜/RSS，不受关键词过滤）
+    github: true                      # GitHub 热门项目区域
     ai_analysis: true                 # AI 分析区域
 
   # 📋 独立展示区配置
