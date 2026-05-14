@@ -129,7 +129,7 @@ DEFAULT_BATCH_SIZES = {
 }
 
 # 默认区域顺序
-DEFAULT_REGION_ORDER = ["hotlist", "rss", "new_items", "standalone", "ai_analysis"]
+DEFAULT_REGION_ORDER = ["hotlist", "rss", "new_items", "standalone", "ai_analysis", "github"]
 
 
 def split_content_into_batches(
@@ -152,8 +152,9 @@ def split_content_into_batches(
     ai_stats: Optional[Dict] = None,
     report_type: str = "热点分析报告",
     show_new_section: bool = True,
+    github_items: Optional[list] = None,
 ) -> List[str]:
-    """分批处理消息内容，确保词组标题+至少第一条新闻的完整性（支持热榜+RSS合并+AI分析+独立展示区）
+    """分批处理消息内容，确保词组标题+至少第一条新闻的完整性（支持热榜+RSS合并+GitHub+AI分析+独立展示区）
 
     热榜统计与RSS统计并列显示，热榜新增与RSS新增并列显示。
     region_order 控制各区域的显示顺序。
@@ -893,6 +894,12 @@ def split_content_into_batches(
         elif region == "ai_analysis":
             # 处理 AI 分析
             current_batch, current_batch_has_content, batches = process_ai_section(
+                current_batch, current_batch_has_content, batches, add_separator
+            )
+        elif region == "github":
+            # 处理 GitHub 热门项目
+            current_batch, current_batch_has_content, batches = _process_github_section(
+                github_items, format_type, feishu_separator,
                 current_batch, current_batch_has_content, batches, add_separator
             )
 
@@ -1840,3 +1847,147 @@ def _format_standalone_rss_item(
 
     item_line += "\n"
     return item_line
+
+
+def _process_github_section(
+    github_items: Optional[list],
+    format_type: str,
+    feishu_separator: str,
+    current_batch: str,
+    current_batch_has_content: bool,
+    batches: list,
+    add_separator: bool = True,
+) -> Tuple[str, bool, list]:
+    """处理 GitHub 热门项目区块
+
+    Args:
+        github_items: GitHub 项目列表
+        format_type: 格式类型 (feishu, dingtalk, telegram, etc.)
+        feishu_separator: 飞书消息分隔符
+        current_batch: 当前批次内容
+        current_batch_has_content: 当前批次是否有内容
+        batches: 批次列表
+        add_separator: 是否添加分隔符
+
+    Returns:
+        (current_batch, current_batch_has_content, batches)
+    """
+    if not github_items:
+        return current_batch, current_batch_has_content, batches
+
+    # 构建 GitHub 区块标题
+    if format_type == "telegram":
+        github_header = f"\n\n🐙 GitHub 热门项目 (共 {len(github_items)} 个)\n\n"
+    elif format_type in ("feishu", "dingtalk"):
+        github_header = f"\n\n🐙 **GitHub 热门项目** (共 {len(github_items)} 个)\n\n"
+    else:
+        github_header = f"\n\n🐙 **GitHub 热门项目** (共 {len(github_items)} 个)\n\n"
+
+    # 添加分隔符
+    separator = ""
+    if add_separator and current_batch_has_content:
+        if format_type == "feishu":
+            separator = f"\n{feishu_separator}\n\n"
+        elif format_type == "dingtalk":
+            separator = "\n---\n\n"
+        else:
+            separator = "\n\n"
+
+    # 添加标题到当前批次
+    test_content = current_batch + separator + github_header
+    if len(test_content.encode("utf-8")) >= len(current_batch.encode("utf-8")) * 0.9:
+        # 如果添加标题后接近批次限制，开始新批次
+        if current_batch_has_content:
+            _safe_append_batch(batches, current_batch, "", len(test_content) + 1000, "")
+        current_batch = github_header
+        current_batch_has_content = True
+    else:
+        current_batch = test_content
+        current_batch_has_content = True
+
+    # 添加每个项目
+    for i, item in enumerate(github_items, 1):
+        title = item.get("title", "")
+        url = item.get("url", "")
+        description = item.get("description", "")
+        language = item.get("language", "")
+        stars = item.get("stars", 0)
+
+        # 根据格式类型构建项目行
+        if format_type == "telegram":
+            if url:
+                item_line = f"  {i}. {title}\n     {url}"
+            else:
+                item_line = f"  {i}. {title}"
+            if description:
+                desc_short = description[:80] + ("..." if len(description) > 80 else "")
+                item_line += f"\n     {desc_short}"
+            meta_parts = []
+            if language:
+                meta_parts.append(f"📋{language}")
+            if stars:
+                meta_parts.append(f"⭐{stars}")
+            if meta_parts:
+                item_line += f"\n     {' · '.join(meta_parts)}"
+        elif format_type == "feishu":
+            if url:
+                item_line = f"  {i}. [{title}]({url})"
+            else:
+                item_line = f"  {i}. {title}"
+            if description:
+                desc_short = description[:100] + ("..." if len(description) > 100 else "")
+                item_line += f"\n      <font color='grey'>{desc_short}</font>"
+            meta_parts = []
+            if language:
+                meta_parts.append(f"📋 {language}")
+            if stars:
+                meta_parts.append(f"⭐ {stars}")
+            if meta_parts:
+                item_line += f"\n      <font color='grey'>{' · '.join(meta_parts)}</font>"
+        elif format_type == "dingtalk":
+            if url:
+                item_line = f"  {i}. [{title}]({url})"
+            else:
+                item_line = f"  {i}. {title}"
+            if description:
+                desc_short = description[:100] + ("..." if len(description) > 100 else "")
+                item_line += f"\n      {desc_short}"
+            meta_parts = []
+            if language:
+                meta_parts.append(f"📋 {language}")
+            if stars:
+                meta_parts.append(f"⭐ {stars}")
+            if meta_parts:
+                item_line += f"\n      {' · '.join(meta_parts)}"
+        else:
+            # 通用格式 (wework, bark, ntfy, slack)
+            if url:
+                item_line = f"  {i}. [{title}]({url})"
+            else:
+                item_line = f"  {i}. {title}"
+            if description:
+                desc_short = description[:100] + ("..." if len(description) > 100 else "")
+                item_line += f"\n      {desc_short}"
+            meta_parts = []
+            if language:
+                meta_parts.append(f"📋 {language}")
+            if stars:
+                meta_parts.append(f"⭐ {stars}")
+            if meta_parts:
+                item_line += f"\n      {' · '.join(meta_parts)}"
+
+        item_line += "\n"
+
+        # 检查是否需要新批次
+        test_content = current_batch + item_line
+        if len(test_content.encode("utf-8")) >= len(current_batch.encode("utf-8")) * 0.9:
+            # 如果添加项目后接近批次限制，开始新批次
+            if current_batch_has_content:
+                _safe_append_batch(batches, current_batch, "", len(test_content) + 1000, "")
+            current_batch = github_header + item_line
+            current_batch_has_content = True
+        else:
+            current_batch = test_content
+            current_batch_has_content = True
+
+    return current_batch, current_batch_has_content, batches
