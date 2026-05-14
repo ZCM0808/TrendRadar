@@ -6,7 +6,7 @@
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Tuple
 
 from trendradar.report.formatter import format_title_for_platform
 from trendradar.report.helpers import format_rank_display
