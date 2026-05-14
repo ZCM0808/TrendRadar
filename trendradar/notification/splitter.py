@@ -900,7 +900,8 @@ def split_content_into_batches(
             # 处理 GitHub 热门项目
             current_batch, current_batch_has_content, batches = _process_github_section(
                 github_items, format_type, feishu_separator,
-                current_batch, current_batch_has_content, batches, add_separator
+                current_batch, current_batch_has_content, batches, add_separator,
+                max_bytes=max_bytes
             )
 
         # 检查该区域是否产生了内容
@@ -1857,6 +1858,7 @@ def _process_github_section(
     current_batch_has_content: bool,
     batches: list,
     add_separator: bool = True,
+    max_bytes: int = 4000,
 ) -> Tuple[str, bool, list]:
     """处理 GitHub 热门项目区块
 
@@ -1868,6 +1870,7 @@ def _process_github_section(
         current_batch_has_content: 当前批次是否有内容
         batches: 批次列表
         add_separator: 是否添加分隔符
+        max_bytes: 最大批次字节数
 
     Returns:
         (current_batch, current_batch_has_content, batches)
@@ -1980,10 +1983,12 @@ def _process_github_section(
 
         # 检查是否需要新批次
         test_content = current_batch + item_line
-        if len(test_content.encode("utf-8")) >= len(current_batch.encode("utf-8")) * 0.9:
-            # 如果添加项目后接近批次限制，开始新批次
+        # 如果添加项目后超过批次限制，开始新批次
+        if len(test_content.encode("utf-8")) >= max_bytes * 0.9:
+            # 先保存当前批次
             if current_batch_has_content:
-                _safe_append_batch(batches, current_batch, "", len(test_content) + 1000, "")
+                _safe_append_batch(batches, current_batch, "", max_bytes, "")
+            # 开始新批次
             current_batch = github_header + item_line
             current_batch_has_content = True
         else:
