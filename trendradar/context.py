@@ -414,8 +414,9 @@ class AppContext:
         standalone_data: Optional[Dict] = None,
         ai_stats: Optional[Dict] = None,
         report_type: str = "热点分析报告",
+        github_items: Optional[list] = None,
     ) -> List[str]:
-        """分批处理消息内容（支持热榜+RSS合并+AI分析+独立展示区）
+        """分批处理消息内容（支持热榜+RSS合并+GitHub+AI分析+独立展示区）
 
         Args:
             report_data: 报告数据
@@ -429,6 +430,7 @@ class AppContext:
             standalone_data: 独立展示区数据
             ai_stats: AI 分析统计数据
             report_type: 报告类型
+            github_items: GitHub 项目列表
 
         Returns:
             分批后的消息内容列表
@@ -457,6 +459,7 @@ class AppContext:
             ai_stats=ai_stats,
             report_type=report_type,
             show_new_section=self.show_new_section,
+            github_items=github_items,
         )
 
     # === 通知发送 ===
