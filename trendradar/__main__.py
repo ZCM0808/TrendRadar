@@ -1321,8 +1321,15 @@ class NewsAnalyzer:
             return None
 
     def _load_pushed_github_urls(self) -> set:
-        """加载已推送的 GitHub 项目 URL"""
+        """加载已推送的 GitHub 项目 URL（从远程存储或本地文件）"""
         try:
+            # 尝试从远程存储加载
+            if hasattr(self.storage_manager, 'load_github_pushed_urls'):
+                urls = self.storage_manager.load_github_pushed_urls()
+                if urls:
+                    return set(urls)
+
+            # 回退到本地文件
             pushed_file = Path("output") / "github_pushed_urls.txt"
             if pushed_file.exists():
                 urls = pushed_file.read_text(encoding="utf-8").strip().split("\n")
@@ -1332,12 +1339,8 @@ class NewsAnalyzer:
             return set()
 
     def _save_pushed_github_urls(self, urls: List[str]) -> None:
-        """保存已推送的 GitHub 项目 URL"""
+        """保存已推送的 GitHub 项目 URL（到远程存储和本地文件）"""
         try:
-            output_dir = Path("output")
-            output_dir.mkdir(parents=True, exist_ok=True)
-            pushed_file = output_dir / "github_pushed_urls.txt"
-
             # 加载现有记录
             existing_urls = self._load_pushed_github_urls()
 
@@ -1346,8 +1349,16 @@ class NewsAnalyzer:
             if len(all_urls) > 100:
                 all_urls = all_urls[-100:]
 
-            # 保存到文件
+            # 保存到远程存储
+            if hasattr(self.storage_manager, 'save_github_pushed_urls'):
+                self.storage_manager.save_github_pushed_urls(all_urls)
+
+            # 保存到本地文件
+            output_dir = Path("output")
+            output_dir.mkdir(parents=True, exist_ok=True)
+            pushed_file = output_dir / "github_pushed_urls.txt"
             pushed_file.write_text("\n".join(all_urls), encoding="utf-8")
+
             print(f"[GitHub] 已保存 {len(urls)} 个推送记录")
 
         except Exception as e:

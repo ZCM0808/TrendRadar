@@ -133,6 +133,15 @@ jobs:
             exit 1
           fi
 
+      - name: Restore GitHub pushed URLs cache
+        if: success()
+        uses: actions/cache@v4
+        with:
+          path: output/github_pushed_urls.txt
+          key: github-pushed-urls-${{ github.run_id }}
+          restore-keys: |
+            github-pushed-urls-
+
       - name: Run crawler
         if: success()
         env:
@@ -168,3 +177,10 @@ jobs:
           S3_REGION: ${{ secrets.S3_REGION }}
           GITHUB_ACTIONS: true
         run: uv run python -m trendradar
+
+      - name: Save GitHub pushed URLs cache
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: output/github_pushed_urls.txt
+          key: github-pushed-urls-${{ github.run_id }}
