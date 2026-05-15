@@ -163,7 +163,7 @@ github:
   pushed_after: "2025-01-01"          # 最近更新时间（YYYY-MM-DD）
 
   # 扫描数量
-  total_per_keyword: 5                # 每个关键词扫描数量（3个关键词共15个，筛选后取10个）
+  total_per_keyword: 30               # 每个关键词扫描数量（3个关键词共90个，过滤已推送后取10个）
 
   # 请求设置
   request_interval: 2000              # 请求间隔（毫秒）
