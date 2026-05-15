@@ -71,9 +71,6 @@ def render_feishu_content(
                 )
                 stats_content += f"  {j}. {formatted_title}\n"
 
-                if j < len(stat["titles"]):
-                    stats_content += "\n"
-
             if i < len(report_data["stats"]) - 1:
                 stats_content += f"\n{separator}\n\n"
 
@@ -219,9 +216,6 @@ def render_dingtalk_content(
                     "dingtalk", title_data, show_source=True
                 )
                 stats_content += f"  {j}. {formatted_title}\n"
-
-                if j < len(stat["titles"]):
-                    stats_content += "\n"
 
             if i < len(report_data["stats"]) - 1:
                 stats_content += "\n---\n\n"

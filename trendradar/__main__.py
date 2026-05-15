@@ -1218,6 +1218,11 @@ class NewsAnalyzer:
                 proxy_url=github_proxy_url,
             )
 
+            # 加载已推送的项目记录，在扫描时排除
+            pushed_urls = self._load_pushed_github_urls()
+            if pushed_urls:
+                print(f"[GitHub] 已有 {len(pushed_urls)} 个推送记录，将排除这些项目")
+
             results, id_to_name, failed_ids = fetcher.crawl_github_projects(
                 keywords=keywords,
                 min_stars=github_config.get("MIN_STARS", 100),
@@ -1225,6 +1230,7 @@ class NewsAnalyzer:
                 language=github_config.get("LANGUAGE"),
                 pushed_after=github_config.get("PUSHED_AFTER"),
                 request_interval=github_config.get("REQUEST_INTERVAL", 2000),
+                exclude_urls=pushed_urls,
             )
 
             # 转换为列表格式
@@ -1243,13 +1249,6 @@ class NewsAnalyzer:
                     "language": data.get("language", ""),
                     "stars": data.get("stars", 0),
                 })
-
-            # 加载已推送的项目记录，过滤掉已推送的项目
-            pushed_urls = self._load_pushed_github_urls()
-            if pushed_urls:
-                before_count = len(github_items)
-                github_items = [item for item in github_items if item["url"] not in pushed_urls]
-                print(f"[GitHub] 过滤已推送项目: {before_count} -> {len(github_items)}")
 
             # 按星标数排序，取前10个
             github_items.sort(key=lambda x: x.get("stars", 0), reverse=True)

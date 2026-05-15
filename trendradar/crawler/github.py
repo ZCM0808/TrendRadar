@@ -129,6 +129,7 @@ class GitHubFetcher:
         language: Optional[str] = None,
         pushed_after: Optional[str] = None,
         request_interval: int = 2000,
+        exclude_urls: Optional[set] = None,
     ) -> Tuple[Dict, Dict, List]:
         """
         爬取 GitHub 热门项目
@@ -140,6 +141,7 @@ class GitHubFetcher:
             language: 编程语言
             pushed_after: 最近更新时间
             request_interval: 请求间隔（毫秒）
+            exclude_urls: 需要排除的 URL 集合
 
         Returns:
             (结果字典, ID到名称的映射, 失败ID列表) 元组
@@ -147,6 +149,7 @@ class GitHubFetcher:
         results = {}
         id_to_name = {}
         failed_ids = []
+        exclude_urls = exclude_urls or set()
 
         for keyword in keywords:
             print(f"🔍 扫描关键词: {keyword}")
@@ -166,7 +169,9 @@ class GitHubFetcher:
                 if not projects:
                     break
 
-                all_projects.extend(projects)
+                # 过滤已推送的项目
+                new_projects = [p for p in projects if p.get("html_url") not in exclude_urls]
+                all_projects.extend(new_projects)
                 print(f"  📦 已获取 {len(all_projects)} / {total_count} 个项目")
 
                 if len(projects) < 100:
