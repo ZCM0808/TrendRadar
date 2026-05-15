@@ -304,12 +304,12 @@ def _render_rss_section_feishu(rss_items: list, separator: str = "---") -> str:
             feeds_map[feed_id] = []
         feeds_map[feed_id].append(item)
 
-    text_content = f"📰 **RSS 订阅更新** (共 {len(rss_items)} 条)\n\n"
+    text_content = f"📰 **RSS 订阅更新** (共 {len(rss_items)} 条)\n"
 
     for feed_id, items in feeds_map.items():
         feed_name = items[0].get("feed_name", feed_id) if items else feed_id
 
-        text_content += f"**{feed_name}** ({len(items)} 条)\n\n"
+        text_content += f"**{feed_name}** ({len(items)} 条)\n"
 
         for i, item in enumerate(items, 1):
             title = item.get("title", "")
@@ -325,9 +325,6 @@ def _render_rss_section_feishu(rss_items: list, separator: str = "---") -> str:
                 text_content += f" <font color='grey'>- {published_at}</font>"
 
             text_content += "\n"
-
-            if i < len(items):
-                text_content += "\n"
 
         text_content += "\n"
 
@@ -347,7 +344,7 @@ def _render_rss_section_markdown(rss_items: list) -> str:
             feeds_map[feed_id] = []
         feeds_map[feed_id].append(item)
 
-    text_content = f"📰 **RSS 订阅更新** (共 {len(rss_items)} 条)\n\n"
+    text_content = f"📰 **RSS 订阅更新** (共 {len(rss_items)} 条)\n"
 
     for feed_id, items in feeds_map.items():
         feed_name = items[0].get("feed_name", feed_id) if items else feed_id
@@ -381,7 +378,7 @@ def _render_github_section_feishu(github_items: list, separator: str = "---") ->
     if not github_items:
         return ""
 
-    text_content = f"🐙 **GitHub 热门项目** (共 {len(github_items)} 个)\n\n"
+    text_content = f"🐙 **GitHub 热门项目** (共 {len(github_items)} 个)\n"
 
     for i, item in enumerate(github_items, 1):
         title = item.get("title", "")
@@ -408,9 +405,6 @@ def _render_github_section_feishu(github_items: list, separator: str = "---") ->
 
         text_content += "\n"
 
-        if i < len(github_items):
-            text_content += "\n"
-
     return text_content.rstrip("\n")
 
 
@@ -419,7 +413,7 @@ def _render_github_section_markdown(github_items: list) -> str:
     if not github_items:
         return ""
 
-    text_content = f"🐙 **GitHub 热门项目** (共 {len(github_items)} 个)\n\n"
+    text_content = f"🐙 **GitHub 热门项目** (共 {len(github_items)} 个)\n"
 
     for i, item in enumerate(github_items, 1):
         title = item.get("title", "")
@@ -446,8 +440,5 @@ def _render_github_section_markdown(github_items: list) -> str:
             text_content += f"\n      {' · '.join(meta_parts)}"
 
         text_content += "\n"
-
-        if i < len(github_items):
-            text_content += "\n"
 
     return text_content.rstrip("\n")
