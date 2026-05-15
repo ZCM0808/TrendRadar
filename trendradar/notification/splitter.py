@@ -487,8 +487,6 @@ def split_content_into_batches(
                     formatted_title = f"{first_title_data['title']}"
 
                 first_news_line = f"  1. {formatted_title}\n"
-                if len(stat["titles"]) > 1:
-                    first_news_line += "\n"
 
             # 原子性检查：词组标题+第一条新闻必须一起处理
             word_with_first_news = word_header + first_news_line
@@ -542,8 +540,6 @@ def split_content_into_batches(
                     formatted_title = f"{title_data['title']}"
 
                 news_line = f"  {j + 1}. {formatted_title}\n"
-                if j < len(stat["titles"]) - 1:
-                    news_line += "\n"
 
                 test_content = current_batch + news_line
                 if (
