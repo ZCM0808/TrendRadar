@@ -309,17 +309,17 @@ def split_content_into_batches(
     stats_header = ""
     if report_data["stats"]:
         if format_type in ("wework", "bark"):
-            stats_header = f"📊 **{stats_title}** (共 {total_hotlist_count} 条)\n\n"
+            stats_header = f"📊 **{stats_title}** (共 {total_hotlist_count} 条)\n"
         elif format_type == "telegram":
-            stats_header = f"📊 {stats_title} (共 {total_hotlist_count} 条)\n\n"
+            stats_header = f"📊 {stats_title} (共 {total_hotlist_count} 条)\n"
         elif format_type == "ntfy":
-            stats_header = f"📊 **{stats_title}** (共 {total_hotlist_count} 条)\n\n"
+            stats_header = f"📊 **{stats_title}** (共 {total_hotlist_count} 条)\n"
         elif format_type == "feishu":
-            stats_header = f"📊 **{stats_title}** (共 {total_hotlist_count} 条)\n\n"
+            stats_header = f"📊 **{stats_title}** (共 {total_hotlist_count} 条)\n"
         elif format_type == "dingtalk":
-            stats_header = f"📊 **{stats_title}** (共 {total_hotlist_count} 条)\n\n"
+            stats_header = f"📊 **{stats_title}** (共 {total_hotlist_count} 条)\n"
         elif format_type == "slack":
-            stats_header = f"📊 *{stats_title}* (共 {total_hotlist_count} 条)\n\n"
+            stats_header = f"📊 *{stats_title}* (共 {total_hotlist_count} 条)\n"
 
     current_batch = base_header
     current_batch_has_content = False
@@ -565,17 +565,17 @@ def split_content_into_batches(
             if i < len(report_data["stats"]) - 1:
                 separator = ""
                 if format_type in ("wework", "bark"):
-                    separator = f"\n\n\n\n"
+                    separator = f"\n"
                 elif format_type == "telegram":
-                    separator = f"\n\n"
+                    separator = f"\n"
                 elif format_type == "ntfy":
-                    separator = f"\n\n"
+                    separator = f"\n"
                 elif format_type == "feishu":
-                    separator = f"\n{feishu_separator}\n\n"
+                    separator = f"\n"
                 elif format_type == "dingtalk":
-                    separator = f"\n---\n\n"
+                    separator = f"\n"
                 elif format_type == "slack":
-                    separator = f"\n\n"
+                    separator = f"\n"
 
                 test_content = current_batch + separator
                 if (
