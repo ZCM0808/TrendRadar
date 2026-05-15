@@ -6,7 +6,7 @@
 """
 
 import os
-from typing import Optional
+from typing import Optional, List
 
 from trendradar.storage.base import StorageBackend, NewsData, RSSData
 from trendradar.utils.time import DEFAULT_TIMEZONE
