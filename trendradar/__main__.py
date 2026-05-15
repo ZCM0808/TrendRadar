@@ -1227,7 +1227,7 @@ class NewsAnalyzer:
                 request_interval=github_config.get("REQUEST_INTERVAL", 2000),
             )
 
-            # 转换为列表格式，按星标数排序，取前10个
+            # 转换为列表格式
             github_items = []
             seen_urls = set()  # 用于去重
             for title, data in results.items():
@@ -1244,6 +1244,13 @@ class NewsAnalyzer:
                     "stars": data.get("stars", 0),
                 })
 
+            # 加载已推送的项目记录，过滤掉已推送的项目
+            pushed_urls = self._load_pushed_github_urls()
+            if pushed_urls:
+                before_count = len(github_items)
+                github_items = [item for item in github_items if item["url"] not in pushed_urls]
+                print(f"[GitHub] 过滤已推送项目: {before_count} -> {len(github_items)}")
+
             # 按星标数排序，取前10个
             github_items.sort(key=lambda x: x.get("stars", 0), reverse=True)
             github_items = github_items[:10]
@@ -1255,6 +1262,10 @@ class NewsAnalyzer:
                     translated = self._translate_to_chinese(desc)
                     if translated:
                         item["description"] = translated
+
+            # 保存本次推送的项目记录
+            if github_items:
+                self._save_pushed_github_urls([item["url"] for item in github_items])
 
             print(f"[GitHub] 最终推送 {len(github_items)} 个项目")
             return github_items
@@ -1308,6 +1319,39 @@ class NewsAnalyzer:
         except Exception as e:
             print(f"[GitHub] 翻译失败: {e}")
             return None
+
+    def _load_pushed_github_urls(self) -> set:
+        """加载已推送的 GitHub 项目 URL"""
+        try:
+            pushed_file = Path("output") / "github_pushed_urls.txt"
+            if pushed_file.exists():
+                urls = pushed_file.read_text(encoding="utf-8").strip().split("\n")
+                return set(url for url in urls if url)
+            return set()
+        except Exception:
+            return set()
+
+    def _save_pushed_github_urls(self, urls: List[str]) -> None:
+        """保存已推送的 GitHub 项目 URL"""
+        try:
+            output_dir = Path("output")
+            output_dir.mkdir(parents=True, exist_ok=True)
+            pushed_file = output_dir / "github_pushed_urls.txt"
+
+            # 加载现有记录
+            existing_urls = self._load_pushed_github_urls()
+
+            # 合并新旧记录，保留最近 100 个
+            all_urls = list(existing_urls.union(set(urls)))
+            if len(all_urls) > 100:
+                all_urls = all_urls[-100:]
+
+            # 保存到文件
+            pushed_file.write_text("\n".join(all_urls), encoding="utf-8")
+            print(f"[GitHub] 已保存 {len(urls)} 个推送记录")
+
+        except Exception as e:
+            print(f"[GitHub] 保存推送记录失败: {e}")
 
     def _process_rss_data_by_mode(self, rss_data) -> Tuple[Optional[List[Dict]], Optional[List[Dict]], Optional[List[Dict]], set]:
         """
