@@ -1229,10 +1229,16 @@ class NewsAnalyzer:
 
             # 转换为列表格式，按星标数排序，取前10个
             github_items = []
+            seen_urls = set()  # 用于去重
             for title, data in results.items():
+                url = data.get("url", "")
+                # 根据 URL 去重
+                if url in seen_urls:
+                    continue
+                seen_urls.add(url)
                 github_items.append({
                     "title": title,
-                    "url": data.get("url", ""),
+                    "url": url,
                     "description": data.get("description", ""),
                     "language": data.get("language", ""),
                     "stars": data.get("stars", 0),
