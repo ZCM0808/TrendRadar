@@ -1012,29 +1012,29 @@ def _process_rss_stats_section(
     if add_separator and current_batch_has_content:
         # 需要添加分割线
         if format_type == "feishu":
-            rss_header = f"\n{feishu_separator}\n\n📰 **RSS 订阅统计** (共 {total_items} 条)\n\n"
+            rss_header = f"\n📰 **RSS 订阅统计** (共 {total_items} 条)\n"
         elif format_type == "dingtalk":
-            rss_header = f"\n---\n\n📰 **RSS 订阅统计** (共 {total_items} 条)\n\n"
+            rss_header = f"\n📰 **RSS 订阅统计** (共 {total_items} 条)\n"
         elif format_type in ("wework", "bark"):
-            rss_header = f"\n\n\n\n📰 **RSS 订阅统计** (共 {total_items} 条)\n\n"
+            rss_header = f"\n📰 **RSS 订阅统计** (共 {total_items} 条)\n"
         elif format_type == "telegram":
-            rss_header = f"\n\n📰 RSS 订阅统计 (共 {total_items} 条)\n\n"
+            rss_header = f"\n📰 RSS 订阅统计 (共 {total_items} 条)\n"
         elif format_type == "slack":
-            rss_header = f"\n\n📰 *RSS 订阅统计* (共 {total_items} 条)\n\n"
+            rss_header = f"\n📰 *RSS 订阅统计* (共 {total_items} 条)\n"
         else:
-            rss_header = f"\n\n📰 **RSS 订阅统计** (共 {total_items} 条)\n\n"
+            rss_header = f"\n📰 **RSS 订阅统计** (共 {total_items} 条)\n"
     else:
         # 不需要分割线（第一个区域）
         if format_type == "feishu":
-            rss_header = f"📰 **RSS 订阅统计** (共 {total_items} 条)\n\n"
+            rss_header = f"📰 **RSS 订阅统计** (共 {total_items} 条)\n"
         elif format_type == "dingtalk":
-            rss_header = f"📰 **RSS 订阅统计** (共 {total_items} 条)\n\n"
+            rss_header = f"📰 **RSS 订阅统计** (共 {total_items} 条)\n"
         elif format_type == "telegram":
-            rss_header = f"📰 RSS 订阅统计 (共 {total_items} 条)\n\n"
+            rss_header = f"📰 RSS 订阅统计 (共 {total_items} 条)\n"
         elif format_type == "slack":
-            rss_header = f"📰 *RSS 订阅统计* (共 {total_items} 条)\n\n"
+            rss_header = f"📰 *RSS 订阅统计* (共 {total_items} 条)\n"
         else:
-            rss_header = f"📰 **RSS 订阅统计** (共 {total_items} 条)\n\n"
+            rss_header = f"📰 **RSS 订阅统计** (共 {total_items} 条)\n"
 
     # 添加 RSS 标题
     test_content = current_batch + rss_header
@@ -1059,46 +1059,46 @@ def _process_rss_stats_section(
         word_header = ""
         if format_type in ("wework", "bark"):
             if count >= 10:
-                word_header = f"🔥 {sequence_display} **{word}** : **{count}** 条\n\n"
+                word_header = f"🔥 {sequence_display} **{word}** : **{count}** 条\n"
             elif count >= 5:
-                word_header = f"📈 {sequence_display} **{word}** : **{count}** 条\n\n"
+                word_header = f"📈 {sequence_display} **{word}** : **{count}** 条\n"
             else:
-                word_header = f"📌 {sequence_display} **{word}** : {count} 条\n\n"
+                word_header = f"📌 {sequence_display} **{word}** : {count} 条\n"
         elif format_type == "telegram":
             if count >= 10:
-                word_header = f"🔥 {sequence_display} {word} : {count} 条\n\n"
+                word_header = f"🔥 {sequence_display} {word} : {count} 条\n"
             elif count >= 5:
-                word_header = f"📈 {sequence_display} {word} : {count} 条\n\n"
+                word_header = f"📈 {sequence_display} {word} : {count} 条\n"
             else:
-                word_header = f"📌 {sequence_display} {word} : {count} 条\n\n"
+                word_header = f"📌 {sequence_display} {word} : {count} 条\n"
         elif format_type == "ntfy":
             if count >= 10:
-                word_header = f"🔥 {sequence_display} **{word}** : **{count}** 条\n\n"
+                word_header = f"🔥 {sequence_display} **{word}** : **{count}** 条\n"
             elif count >= 5:
-                word_header = f"📈 {sequence_display} **{word}** : **{count}** 条\n\n"
+                word_header = f"📈 {sequence_display} **{word}** : **{count}** 条\n"
             else:
-                word_header = f"📌 {sequence_display} **{word}** : {count} 条\n\n"
+                word_header = f"📌 {sequence_display} **{word}** : {count} 条\n"
         elif format_type == "feishu":
             if count >= 10:
-                word_header = f"🔥 <font color='grey'>{sequence_display}</font> **{word}** : <font color='red'>{count}</font> 条\n\n"
+                word_header = f"🔥 <font color='grey'>{sequence_display}</font> **{word}** : <font color='red'>{count}</font> 条\n"
             elif count >= 5:
-                word_header = f"📈 <font color='grey'>{sequence_display}</font> **{word}** : <font color='orange'>{count}</font> 条\n\n"
+                word_header = f"📈 <font color='grey'>{sequence_display}</font> **{word}** : <font color='orange'>{count}</font> 条\n"
             else:
-                word_header = f"📌 <font color='grey'>{sequence_display}</font> **{word}** : {count} 条\n\n"
+                word_header = f"📌 <font color='grey'>{sequence_display}</font> **{word}** : {count} 条\n"
         elif format_type == "dingtalk":
             if count >= 10:
-                word_header = f"🔥 {sequence_display} **{word}** : **{count}** 条\n\n"
+                word_header = f"🔥 {sequence_display} **{word}** : **{count}** 条\n"
             elif count >= 5:
-                word_header = f"📈 {sequence_display} **{word}** : **{count}** 条\n\n"
+                word_header = f"📈 {sequence_display} **{word}** : **{count}** 条\n"
             else:
-                word_header = f"📌 {sequence_display} **{word}** : {count} 条\n\n"
+                word_header = f"📌 {sequence_display} **{word}** : {count} 条\n"
         elif format_type == "slack":
             if count >= 10:
-                word_header = f"🔥 {sequence_display} *{word}* : *{count}* 条\n\n"
+                word_header = f"🔥 {sequence_display} *{word}* : *{count}* 条\n"
             elif count >= 5:
-                word_header = f"📈 {sequence_display} *{word}* : *{count}* 条\n\n"
+                word_header = f"📈 {sequence_display} *{word}* : *{count}* 条\n"
             else:
-                word_header = f"📌 {sequence_display} *{word}* : {count} 条\n\n"
+                word_header = f"📌 {sequence_display} *{word}* : {count} 条\n"
 
         # 构建第一条新闻（使用 format_title_for_platform）
         first_news_line = ""
