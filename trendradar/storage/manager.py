@@ -367,6 +367,30 @@ class StorageManager:
         """获取所有 RSS ID 和标题"""
         return self.get_backend().get_all_rss_ids(date)
 
+    # === GitHub 推送记录操作 ===
+
+    def load_github_pushed_urls(self) -> List[str]:
+        """加载已推送的 GitHub 项目 URL"""
+        try:
+            pushed_file = Path(self.data_dir) / "github_pushed_urls.txt"
+            if pushed_file.exists():
+                urls = pushed_file.read_text(encoding="utf-8").strip().split("\n")
+                return [url for url in urls if url]
+            return []
+        except Exception:
+            return []
+
+    def save_github_pushed_urls(self, urls: List[str]) -> bool:
+        """保存已推送的 GitHub 项目 URL"""
+        try:
+            output_dir = Path(self.data_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            pushed_file = output_dir / "github_pushed_urls.txt"
+            pushed_file.write_text("\n".join(urls), encoding="utf-8")
+            return True
+        except Exception:
+            return False
+
 
 
 def get_storage_manager(
