@@ -1923,7 +1923,7 @@ def _process_github_section(
             else:
                 item_line = f"  {i}. {title}"
             if description:
-                desc_short = description[:80] + ("..." if len(description) > 80 else "")
+                desc_short = description[:150] + ("..." if len(description) > 150 else "")
                 item_line += f"\n     {desc_short}"
             meta_parts = []
             if language:
@@ -1938,7 +1938,7 @@ def _process_github_section(
             else:
                 item_line = f"  {i}. {title}"
             if description:
-                desc_short = description[:100] + ("..." if len(description) > 100 else "")
+                desc_short = description[:200] + ("..." if len(description) > 200 else "")
                 item_line += f"\n      <font color='grey'>{desc_short}</font>"
             meta_parts = []
             if language:
@@ -1953,7 +1953,7 @@ def _process_github_section(
             else:
                 item_line = f"  {i}. {title}"
             if description:
-                desc_short = description[:100] + ("..." if len(description) > 100 else "")
+                desc_short = description[:200] + ("..." if len(description) > 200 else "")
                 item_line += f"\n      {desc_short}"
             meta_parts = []
             if language:
@@ -1969,7 +1969,7 @@ def _process_github_section(
             else:
                 item_line = f"  {i}. {title}"
             if description:
-                desc_short = description[:100] + ("..." if len(description) > 100 else "")
+                desc_short = description[:200] + ("..." if len(description) > 200 else "")
                 item_line += f"\n      {desc_short}"
             meta_parts = []
             if language:
