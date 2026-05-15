@@ -59,11 +59,11 @@ def render_feishu_content(
             sequence_display = f"<font color='grey'>[{i + 1}/{total_count}]</font>"
 
             if count >= 10:
-                stats_content += f"🔥 {sequence_display} **{word}** : <font color='red'>{count}</font> 条\n\n"
+                stats_content += f"🔥 {sequence_display} **{word}** : <font color='red'>{count}</font> 条\n"
             elif count >= 5:
-                stats_content += f"📈 {sequence_display} **{word}** : <font color='orange'>{count}</font> 条\n\n"
+                stats_content += f"📈 {sequence_display} **{word}** : <font color='orange'>{count}</font> 条\n"
             else:
-                stats_content += f"📌 {sequence_display} **{word}** : {count} 条\n\n"
+                stats_content += f"📌 {sequence_display} **{word}** : {count} 条\n"
 
             for j, title_data in enumerate(stat["titles"], 1):
                 formatted_title = format_title_for_platform(
@@ -202,11 +202,11 @@ def render_dingtalk_content(
             sequence_display = f"[{i + 1}/{total_count}]"
 
             if count >= 10:
-                stats_content += f"🔥 {sequence_display} **{word}** : **{count}** 条\n\n"
+                stats_content += f"🔥 {sequence_display} **{word}** : **{count}** 条\n"
             elif count >= 5:
-                stats_content += f"📈 {sequence_display} **{word}** : **{count}** 条\n\n"
+                stats_content += f"📈 {sequence_display} **{word}** : **{count}** 条\n"
             else:
-                stats_content += f"📌 {sequence_display} **{word}** : {count} 条\n\n"
+                stats_content += f"📌 {sequence_display} **{word}** : {count} 条\n"
 
             for j, title_data in enumerate(stat["titles"], 1):
                 formatted_title = format_title_for_platform(
