@@ -1227,7 +1227,7 @@ class NewsAnalyzer:
                 request_interval=github_config.get("REQUEST_INTERVAL", 2000),
             )
 
-            # 转换为列表格式
+            # 转换为列表格式，按星标数排序，取前10个
             github_items = []
             for title, data in results.items():
                 github_items.append({
@@ -1238,7 +1238,19 @@ class NewsAnalyzer:
                     "stars": data.get("stars", 0),
                 })
 
-            print(f"[GitHub] 共获取 {len(github_items)} 个项目")
+            # 按星标数排序，取前10个
+            github_items.sort(key=lambda x: x.get("stars", 0), reverse=True)
+            github_items = github_items[:10]
+
+            # 翻译英文描述为中文
+            for item in github_items:
+                desc = item.get("description", "")
+                if desc and self._is_english(desc):
+                    translated = self._translate_to_chinese(desc)
+                    if translated:
+                        item["description"] = translated
+
+            print(f"[GitHub] 最终推送 {len(github_items)} 个项目")
             return github_items
 
         except ImportError as e:
@@ -1246,6 +1258,49 @@ class NewsAnalyzer:
             return None
         except Exception as e:
             print(f"[GitHub] 扫描失败: {e}")
+            return None
+
+    def _is_english(self, text: str) -> bool:
+        """检测文本是否主要为英文"""
+        if not text:
+            return False
+        # 计算英文字母比例
+        english_chars = sum(1 for c in text if c.isascii() and c.isalpha())
+        total_chars = sum(1 for c in text if c.isalpha())
+        if total_chars == 0:
+            return False
+        return english_chars / total_chars > 0.5
+
+    def _translate_to_chinese(self, text: str) -> Optional[str]:
+        """将英文翻译为中文（使用 AI 翻译功能）"""
+        if not text:
+            return None
+
+        # 检查 AI 翻译是否启用
+        trans_config = self.ctx.config.get("AI_TRANSLATION", {})
+        if not trans_config.get("ENABLED", False):
+            return None
+
+        ai_config = self.ctx.config.get("AI", {})
+        if not ai_config.get("API_KEY"):
+            return None
+
+        try:
+            from trendradar.ai.translator import AITranslator
+
+            translator = AITranslator(
+                ai_config=ai_config,
+                trans_config=trans_config,
+            )
+
+            # 翻译单条文本
+            result = translator.translate(text)
+            if result and result.success:
+                return result.translated_text
+            return None
+
+        except Exception as e:
+            print(f"[GitHub] 翻译失败: {e}")
             return None
 
     def _process_rss_data_by_mode(self, rss_data) -> Tuple[Optional[List[Dict]], Optional[List[Dict]], Optional[List[Dict]], set]:
