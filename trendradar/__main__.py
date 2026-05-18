@@ -1250,9 +1250,9 @@ class NewsAnalyzer:
                     "stars": data.get("stars", 0),
                 })
 
-            # 按星标数排序，取前10个
+            # 按星标数排序，取前1个
             github_items.sort(key=lambda x: x.get("stars", 0), reverse=True)
-            github_items = github_items[:10]
+            github_items = github_items[:1]
 
             # 翻译英文描述为中文
             for item in github_items:
