@@ -28,6 +28,7 @@ from trendradar.storage import convert_crawl_results_to_news_data
 from trendradar.utils.time import DEFAULT_TIMEZONE, is_within_days, calculate_days_old
 from trendradar.ai import AIAnalyzer, AIAnalysisResult
 from trendradar.core.scheduler import ResolvedSchedule
+from trendradar.core.cdn import fetch_with_fallback
 
 
 def _parse_version(version_str: str) -> Tuple[int, int, int]:
@@ -55,24 +56,8 @@ def _compare_version(local: str, remote: str) -> str:
 
 
 def _fetch_remote_version(version_url: str, proxy_url: Optional[str] = None) -> Optional[str]:
-    """获取远程版本号"""
-    try:
-        proxies = None
-        if proxy_url:
-            proxies = {"http": proxy_url, "https": proxy_url}
-
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "text/plain, */*",
-            "Cache-Control": "no-cache",
-        }
-
-        response = requests.get(version_url, proxies=proxies, headers=headers, timeout=10)
-        response.raise_for_status()
-        return response.text.strip()
-    except Exception as e:
-        print(f"[版本检查] 获取远程版本失败: {e}")
-        return None
+    """获取远程版本号（支持 CDN 多源回退）"""
+    return fetch_with_fallback(version_url, proxy_url)
 
 
 def _parse_config_versions(content: str) -> Dict[str, str]:
@@ -238,6 +223,13 @@ class NewsAnalyzer:
         self.proxy_url = None
         self._setup_proxy()
         self.data_fetcher = DataFetcher(self.proxy_url)
+
+        # RSS/平台元数据（用于报告头部展示）
+        self._rss_source_total = 0
+        self._rss_source_failed = 0
+        self._rss_total_count = 0
+        self._rss_matched_count = 0
+        self._hotlist_total_count = 0
 
         # 初始化存储管理器（使用 AppContext）
         self._init_storage_manager()
@@ -655,9 +647,9 @@ class NewsAnalyzer:
 
         纯数据准备方法，不检查 display.regions.standalone 开关。
         各消费者自行决定是否使用：
-        - AI 分析：由 ai.include_standalone 控制
-        - 通知推送：由 display.regions.standalone 控制（在 dispatcher 层门控）
-        - HTML 报告：始终包含（如果有数据）
+        - AI 分析：由 ai.include_standalone 控制（在 _run_ai_analysis 层门控）
+        - HTML 报告 / 邮件：由 display.regions.standalone 控制（在 HTML 生成前过滤）
+        - Webhook 推送：由 display.regions.standalone 控制（在 dispatcher 层门控）
 
         Args:
             results: 原始爬取结果 {platform_id: {title: title_data}}
@@ -848,6 +840,8 @@ class NewsAnalyzer:
                 mode=mode, global_filters=global_filters, quiet=quiet,
             )
 
+        self._hotlist_total_count = total_titles
+
         # 如果是 platform 模式，转换数据结构
         if self.ctx.display_mode == "platform" and stats:
             stats = convert_keyword_stats_to_platform_stats(
@@ -884,9 +878,15 @@ class NewsAnalyzer:
                     display_regions=display_regions,
                 )
 
+        # 计算 RSS 匹配条数（供 HTML 和推送共用）
+        self._rss_matched_count = sum(stat.get("count", 0) for stat in rss_items) if rss_items else 0
+
         # HTML生成（如果启用）— 使用翻译后的数据
         html_file = None
         if self.ctx.config["STORAGE"]["FORMATS"]["HTML"]:
+            display_regions = self.ctx.config.get("DISPLAY", {}).get("REGIONS", {})
+            html_standalone = standalone_data if display_regions.get("STANDALONE", False) else None
+            html_ai = ai_result if display_regions.get("AI_ANALYSIS", True) else None
             html_file = self.ctx.generate_html(
                 stats,
                 total_titles,
@@ -897,9 +897,17 @@ class NewsAnalyzer:
                 update_info=self.update_info if self.ctx.config["SHOW_VERSION_UPDATE"] else None,
                 rss_items=rss_items,
                 rss_new_items=rss_new_items,
-                ai_analysis=ai_result,
-                standalone_data=standalone_data,
+                ai_analysis=html_ai,
+                standalone_data=html_standalone,
                 frequency_file=self.frequency_file,
+                report_metadata={
+                    "hotlist_total": total_titles,
+                    "platform_total": len(self.ctx.platform_ids),
+                    "rss_matched_count": self._rss_matched_count,
+                    "rss_total_count": self._rss_total_count,
+                    "rss_source_total": self._rss_source_total,
+                    "rss_source_failed": self._rss_source_failed,
+                },
             )
 
         return stats, html_file, ai_result, rss_items
@@ -919,7 +927,6 @@ class NewsAnalyzer:
         ai_result: Optional[AIAnalysisResult] = None,
         current_results: Optional[Dict] = None,
         schedule: ResolvedSchedule = None,
-        github_items: Optional[List[Dict]] = None,
     ) -> bool:
         """统一的通知发送逻辑，包含所有判断条件，支持热榜+RSS合并推送+AI分析+独立展示区"""
         has_notification = self._has_notification_configured()
@@ -974,6 +981,14 @@ class NewsAnalyzer:
             # 准备报告数据
             report_data = self.ctx.prepare_report(stats, failed_ids, new_titles, id_to_name, mode, frequency_file=self.frequency_file)
 
+            # 注入元数据（用于推送头部展示）
+            report_data["hotlist_total"] = self._hotlist_total_count
+            report_data["platform_total"] = len(self.ctx.platform_ids)
+            report_data["rss_matched_count"] = self._rss_matched_count
+            report_data["rss_total_count"] = self._rss_total_count
+            report_data["rss_source_total"] = self._rss_source_total
+            report_data["rss_source_failed"] = self._rss_source_failed
+
             # 是否发送版本更新信息
             update_info_to_send = self.update_info if cfg["SHOW_VERSION_UPDATE"] else None
 
@@ -992,7 +1007,6 @@ class NewsAnalyzer:
                 ai_analysis=ai_result,
                 standalone_data=standalone_data,
                 skip_translation=True,
-                github_items=github_items,
             )
 
             if not results:
@@ -1170,6 +1184,9 @@ class NewsAnalyzer:
             # 抓取数据
             rss_data = fetcher.fetch_all()
 
+            self._rss_source_total = len(feeds)
+            self._rss_source_failed = len(rss_data.failed_ids)
+
             # 保存到存储后端
             if self.storage_manager.save_rss_data(rss_data):
                 print(f"[RSS] 数据已保存到存储后端")
@@ -1187,181 +1204,6 @@ class NewsAnalyzer:
         except Exception as e:
             print(f"[RSS] 抓取失败: {e}")
             return None, None, None, set()
-
-    def _crawl_github_data(self) -> Optional[List[Dict]]:
-        """
-        执行 GitHub 热门项目扫描
-
-        Returns:
-            GitHub 项目列表（每个项目为 dict，包含 title, url, description, language, stars 等字段）
-            如果未启用或失败返回 None
-        """
-        github_config = self.ctx.config.get("GITHUB", {})
-        if not github_config.get("ENABLED", False):
-            return None
-
-        keywords = github_config.get("KEYWORDS", [])
-        if not keywords:
-            print("[GitHub] 未配置搜索关键词")
-            return None
-
-        try:
-            from trendradar.crawler.github import GitHubFetcher
-
-            # 确定代理配置
-            github_proxy_url = None
-            if github_config.get("USE_PROXY", False):
-                github_proxy_url = github_config.get("PROXY_URL", "") or self.proxy_url
-
-            fetcher = GitHubFetcher(
-                token=github_config.get("TOKEN", "") or None,
-                proxy_url=github_proxy_url,
-            )
-
-            # 加载已推送的项目记录，在扫描时排除
-            pushed_urls = self._load_pushed_github_urls()
-            if pushed_urls:
-                print(f"[GitHub] 已有 {len(pushed_urls)} 个推送记录，将排除这些项目")
-
-            results, id_to_name, failed_ids = fetcher.crawl_github_projects(
-                keywords=keywords,
-                min_stars=github_config.get("MIN_STARS", 100),
-                total_per_keyword=github_config.get("TOTAL_PER_KEYWORD", 50),
-                language=github_config.get("LANGUAGE"),
-                pushed_after=github_config.get("PUSHED_AFTER"),
-                request_interval=github_config.get("REQUEST_INTERVAL", 2000),
-                exclude_urls=pushed_urls,
-            )
-
-            # 转换为列表格式
-            github_items = []
-            seen_urls = set()  # 用于去重
-            for title, data in results.items():
-                url = data.get("url", "")
-                # 根据 URL 去重
-                if url in seen_urls:
-                    continue
-                seen_urls.add(url)
-                github_items.append({
-                    "title": title,
-                    "url": url,
-                    "description": data.get("description", ""),
-                    "language": data.get("language", ""),
-                    "stars": data.get("stars", 0),
-                })
-
-            # 按星标数排序，取前1个
-            github_items.sort(key=lambda x: x.get("stars", 0), reverse=True)
-            github_items = github_items[:1]
-
-            # 翻译英文描述为中文
-            for item in github_items:
-                desc = item.get("description", "")
-                if desc and self._is_english(desc):
-                    translated = self._translate_to_chinese(desc)
-                    if translated:
-                        item["description"] = translated
-
-            # 保存本次推送的项目记录
-            if github_items:
-                self._save_pushed_github_urls([item["url"] for item in github_items])
-
-            print(f"[GitHub] 最终推送 {len(github_items)} 个项目")
-            return github_items
-
-        except ImportError as e:
-            print(f"[GitHub] 缺少依赖: {e}")
-            return None
-        except Exception as e:
-            print(f"[GitHub] 扫描失败: {e}")
-            return None
-
-    def _is_english(self, text: str) -> bool:
-        """检测文本是否主要为英文"""
-        if not text:
-            return False
-        # 计算英文字母比例
-        english_chars = sum(1 for c in text if c.isascii() and c.isalpha())
-        total_chars = sum(1 for c in text if c.isalpha())
-        if total_chars == 0:
-            return False
-        return english_chars / total_chars > 0.5
-
-    def _translate_to_chinese(self, text: str) -> Optional[str]:
-        """将英文翻译为中文（使用 AI 翻译功能）"""
-        if not text:
-            return None
-
-        # 检查 AI 翻译是否启用
-        trans_config = self.ctx.config.get("AI_TRANSLATION", {})
-        if not trans_config.get("ENABLED", False):
-            return None
-
-        ai_config = self.ctx.config.get("AI", {})
-        if not ai_config.get("API_KEY"):
-            return None
-
-        try:
-            from trendradar.ai.translator import AITranslator
-
-            translator = AITranslator(
-                ai_config=ai_config,
-                trans_config=trans_config,
-            )
-
-            # 翻译单条文本
-            result = translator.translate(text)
-            if result and result.success:
-                return result.translated_text
-            return None
-
-        except Exception as e:
-            print(f"[GitHub] 翻译失败: {e}")
-            return None
-
-    def _load_pushed_github_urls(self) -> set:
-        """加载已推送的 GitHub 项目 URL（从远程存储或本地文件）"""
-        try:
-            # 尝试从远程存储加载
-            if hasattr(self.storage_manager, 'load_github_pushed_urls'):
-                urls = self.storage_manager.load_github_pushed_urls()
-                if urls:
-                    return set(urls)
-
-            # 回退到本地文件
-            pushed_file = Path("output") / "github_pushed_urls.txt"
-            if pushed_file.exists():
-                urls = pushed_file.read_text(encoding="utf-8").strip().split("\n")
-                return set(url for url in urls if url)
-            return set()
-        except Exception:
-            return set()
-
-    def _save_pushed_github_urls(self, urls: List[str]) -> None:
-        """保存已推送的 GitHub 项目 URL（到远程存储和本地文件）"""
-        try:
-            # 加载现有记录
-            existing_urls = self._load_pushed_github_urls()
-
-            # 合并新旧记录，保留最近 100 个
-            all_urls = list(existing_urls.union(set(urls)))
-            if len(all_urls) > 100:
-                all_urls = all_urls[-100:]
-
-            # 保存到远程存储
-            if hasattr(self.storage_manager, 'save_github_pushed_urls'):
-                self.storage_manager.save_github_pushed_urls(all_urls)
-
-            # 保存到本地文件
-            output_dir = Path("output")
-            output_dir.mkdir(parents=True, exist_ok=True)
-            pushed_file = output_dir / "github_pushed_urls.txt"
-            pushed_file.write_text("\n".join(all_urls), encoding="utf-8")
-
-            print(f"[GitHub] 已保存 {len(urls)} 个推送记录")
-
-        except Exception as e:
-            print(f"[GitHub] 保存推送记录失败: {e}")
 
     def _process_rss_data_by_mode(self, rss_data) -> Tuple[Optional[List[Dict]], Optional[List[Dict]], Optional[List[Dict]], set]:
         """
@@ -1533,6 +1375,7 @@ class NewsAnalyzer:
                     quiet=True,
                 )
 
+        self._rss_total_count = total
         return rss_stats, rss_new_stats, raw_rss_items, rss_new_urls
 
     def _convert_rss_items_to_list(self, items_dict: Dict, id_to_name: Dict) -> List[Dict]:
@@ -1667,7 +1510,6 @@ class NewsAnalyzer:
         rss_new_items: Optional[List[Dict]] = None,
         raw_rss_items: Optional[List[Dict]] = None,
         rss_new_urls: Optional[set] = None,
-        github_items: Optional[List[Dict]] = None,
     ) -> Optional[str]:
         """执行模式特定逻辑，支持热榜+RSS合并推送
 
@@ -1870,7 +1712,6 @@ class NewsAnalyzer:
                 ai_result=ai_result,
                 current_results=results,
                 schedule=schedule,
-                github_items=github_items,
             )
 
         # 打开浏览器（仅在非容器环境）
@@ -1897,15 +1738,11 @@ class NewsAnalyzer:
             # 抓取 RSS 数据（如果启用），返回统计条目、新增条目和原始条目
             rss_items, rss_new_items, raw_rss_items, rss_new_urls = self._crawl_rss_data()
 
-            # 抓取 GitHub 热门项目（如果启用）
-            github_items = self._crawl_github_data()
-
-            # 执行模式策略，传递 RSS 数据和 GitHub 数据用于合并推送
+            # 执行模式策略，传递 RSS 数据用于合并推送
             self._execute_mode_strategy(
                 mode_strategy, results, id_to_name, failed_ids,
                 rss_items=rss_items, rss_new_items=rss_new_items,
-                raw_rss_items=raw_rss_items, rss_new_urls=rss_new_urls,
-                github_items=github_items,
+                raw_rss_items=raw_rss_items, rss_new_urls=rss_new_urls
             )
 
         except Exception as e:
