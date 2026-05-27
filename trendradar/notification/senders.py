@@ -33,6 +33,25 @@ from .batch import add_batch_headers, get_max_batch_header_size
 from .formatters import convert_markdown_to_mrkdwn, strip_markdown
 
 
+def _extract_ai_stats(ai_analysis) -> Optional[Dict]:
+    """从 AI 分析结果中提取统计数据"""
+    if not ai_analysis or not getattr(ai_analysis, "success", False):
+        return None
+    return {
+        "total_news": getattr(ai_analysis, "total_news", 0),
+        "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
+        "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
+        "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
+        "rss_count": getattr(ai_analysis, "rss_count", 0),
+        "hotlist_analyzed": getattr(ai_analysis, "hotlist_analyzed", 0),
+        "rss_analyzed": getattr(ai_analysis, "rss_analyzed", 0),
+        "standalone_analyzed": getattr(ai_analysis, "standalone_analyzed", 0),
+        "ai_mode": getattr(ai_analysis, "ai_mode", ""),
+        "include_rss": getattr(ai_analysis, "include_rss", True),
+        "include_standalone": getattr(ai_analysis, "include_standalone", False),
+    }
+
+
 def _render_ai_analysis(ai_analysis: Any, channel: str) -> str:
     """渲染 AI 分析内容为指定渠道格式"""
     if not ai_analysis:
@@ -92,10 +111,9 @@ def send_to_feishu(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
-    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到飞书（支持分批发送，支持热榜+RSS合并+GitHub+独立展示区）
+    发送到飞书（支持分批发送，支持热榜+RSS合并+独立展示区）
 
     Args:
         webhook_url: 飞书 Webhook URL
@@ -123,21 +141,9 @@ def send_to_feishu(
     # 日志前缀
     log_prefix = f"飞书{account_label}" if account_label else "飞书"
 
-    # 渲染 AI 分析内容（如果有）
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        ai_content = _render_ai_analysis(ai_analysis, "feishu")
-        # 提取 AI 分析统计数据（只要 AI 分析成功就显示）
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-                "ai_mode": getattr(ai_analysis, "ai_mode", ""),
-            }
+    # 渲染 AI 分析内容并提取统计数据
+    ai_content = _render_ai_analysis(ai_analysis, "feishu") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 预留批次头部空间，避免添加头部后超限
     header_reserve = get_max_batch_header_size("feishu")
@@ -153,7 +159,6 @@ def send_to_feishu(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
-        github_items=github_items,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -239,10 +244,9 @@ def send_to_dingtalk(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
-    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到钉钉（支持分批发送，支持热榜+RSS合并+GitHub+独立展示区）
+    发送到钉钉（支持分批发送，支持热榜+RSS合并+独立展示区）
 
     Args:
         webhook_url: 钉钉 Webhook URL
@@ -269,21 +273,9 @@ def send_to_dingtalk(
     # 日志前缀
     log_prefix = f"钉钉{account_label}" if account_label else "钉钉"
 
-    # 渲染 AI 分析内容（如果有）
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        ai_content = _render_ai_analysis(ai_analysis, "dingtalk")
-        # 提取 AI 分析统计数据（只要 AI 分析成功就显示）
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-                "ai_mode": getattr(ai_analysis, "ai_mode", ""),
-            }
+    # 渲染 AI 分析内容并提取统计数据
+    ai_content = _render_ai_analysis(ai_analysis, "dingtalk") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 预留批次头部空间，避免添加头部后超限
     header_reserve = get_max_batch_header_size("dingtalk")
@@ -299,7 +291,6 @@ def send_to_dingtalk(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
-        github_items=github_items,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -370,10 +361,9 @@ def send_to_wework(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
-    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到企业微信（支持分批发送，支持 markdown 和 text 两种格式，支持热榜+RSS合并+GitHub+独立展示区）
+    发送到企业微信（支持分批发送，支持 markdown 和 text 两种格式，支持热榜+RSS合并+独立展示区）
 
     Args:
         webhook_url: 企业微信 Webhook URL
@@ -412,21 +402,9 @@ def send_to_wework(
     # text 模式使用 wework_text，markdown 模式使用 wework
     header_format_type = "wework_text" if is_text_mode else "wework"
 
-    # 渲染 AI 分析内容（如果有）
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        ai_content = _render_ai_analysis(ai_analysis, "wework")
-        # 提取 AI 分析统计数据（只要 AI 分析成功就显示）
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-                "ai_mode": getattr(ai_analysis, "ai_mode", ""),
-            }
+    # 渲染 AI 分析内容并提取统计数据
+    ai_content = _render_ai_analysis(ai_analysis, "wework") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 获取分批内容，预留批次头部空间
     header_reserve = get_max_batch_header_size(header_format_type)
@@ -438,7 +416,6 @@ def send_to_wework(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
-        github_items=github_items,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -511,10 +488,9 @@ def send_to_telegram(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
-    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到 Telegram（支持分批发送，支持热榜+RSS合并+GitHub+独立展示区）
+    发送到 Telegram（支持分批发送，支持热榜+RSS合并+独立展示区）
 
     Args:
         bot_token: Telegram Bot Token
@@ -544,21 +520,9 @@ def send_to_telegram(
     # 日志前缀
     log_prefix = f"Telegram{account_label}" if account_label else "Telegram"
 
-    # 渲染 AI 分析内容（如果有）
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        ai_content = _render_ai_analysis(ai_analysis, "telegram")
-        # 提取 AI 分析统计数据（只要 AI 分析成功就显示）
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-                "ai_mode": getattr(ai_analysis, "ai_mode", ""),
-            }
+    # 渲染 AI 分析内容并提取统计数据
+    ai_content = _render_ai_analysis(ai_analysis, "telegram") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 获取分批内容，预留批次头部空间
     header_reserve = get_max_batch_header_size("telegram")
@@ -570,7 +534,6 @@ def send_to_telegram(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
-        github_items=github_items,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -799,10 +762,9 @@ def send_to_ntfy(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
-    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到 ntfy（支持分批发送，严格遵守4KB限制，支持热榜+RSS合并+GitHub+独立展示区）
+    发送到 ntfy（支持分批发送，严格遵守4KB限制，支持热榜+RSS合并+独立展示区）
 
     Args:
         server_url: ntfy 服务器 URL
@@ -855,21 +817,9 @@ def send_to_ntfy(
     if proxy_url:
         proxies = {"http": proxy_url, "https": proxy_url}
 
-    # 渲染 AI 分析内容（如果有），合并到主内容中
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        ai_content = _render_ai_analysis(ai_analysis, "ntfy")
-        # 提取 AI 分析统计数据（只要 AI 分析成功就显示）
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-                "ai_mode": getattr(ai_analysis, "ai_mode", ""),
-            }
+    # 渲染 AI 分析内容并提取统计数据
+    ai_content = _render_ai_analysis(ai_analysis, "ntfy") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 获取分批内容，预留批次头部空间
     header_reserve = get_max_batch_header_size("ntfy")
@@ -881,7 +831,6 @@ def send_to_ntfy(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
-        github_items=github_items,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -1003,10 +952,9 @@ def send_to_bark(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
-    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到 Bark（支持分批发送，使用 markdown 格式，支持热榜+RSS合并+GitHub+独立展示区）
+    发送到 Bark（支持分批发送，使用 markdown 格式，支持热榜+RSS合并+独立展示区）
 
     Args:
         bark_url: Bark URL（包含 device_key）
@@ -1044,21 +992,9 @@ def send_to_bark(
     # 构建正确的 API 端点
     api_endpoint = f"{parsed_url.scheme}://{parsed_url.netloc}/push"
 
-    # 渲染 AI 分析内容（如果有），合并到主内容中
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        ai_content = _render_ai_analysis(ai_analysis, "bark")
-        # 提取 AI 分析统计数据（只要 AI 分析成功就显示）
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-                "ai_mode": getattr(ai_analysis, "ai_mode", ""),
-            }
+    # 渲染 AI 分析内容并提取统计数据
+    ai_content = _render_ai_analysis(ai_analysis, "bark") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 获取分批内容，预留批次头部空间
     header_reserve = get_max_batch_header_size("bark")
@@ -1070,7 +1006,6 @@ def send_to_bark(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
-        github_items=github_items,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -1179,10 +1114,9 @@ def send_to_slack(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
-    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到 Slack（支持分批发送，使用 mrkdwn 格式，支持热榜+RSS合并+GitHub+独立展示区）
+    发送到 Slack（支持分批发送，使用 mrkdwn 格式，支持热榜+RSS合并+独立展示区）
 
     Args:
         webhook_url: Slack Webhook URL
@@ -1209,21 +1143,9 @@ def send_to_slack(
     # 日志前缀
     log_prefix = f"Slack{account_label}" if account_label else "Slack"
 
-    # 渲染 AI 分析内容（如果有），合并到主内容中
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        ai_content = _render_ai_analysis(ai_analysis, "slack")
-        # 提取 AI 分析统计数据（只要 AI 分析成功就显示）
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-                "ai_mode": getattr(ai_analysis, "ai_mode", ""),
-            }
+    # 渲染 AI 分析内容并提取统计数据
+    ai_content = _render_ai_analysis(ai_analysis, "slack") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 获取分批内容，预留批次头部空间
     header_reserve = get_max_batch_header_size("slack")
@@ -1235,7 +1157,6 @@ def send_to_slack(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
-        github_items=github_items,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -1300,10 +1221,9 @@ def send_to_generic_webhook(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
-    github_items: Optional[list] = None,
 ) -> bool:
     """
-    发送到通用 Webhook（支持分批发送，支持自定义 JSON 模板，支持热榜+RSS合并+GitHub+独立展示区）
+    发送到通用 Webhook（支持分批发送，支持自定义 JSON 模板，支持热榜+RSS合并+独立展示区）
 
     Args:
         webhook_url: Webhook URL
@@ -1334,21 +1254,9 @@ def send_to_generic_webhook(
     # 日志前缀
     log_prefix = f"通用Webhook{account_label}" if account_label else "通用Webhook"
 
-    # 渲染 AI 分析内容（如果有）
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        # 通用 Webhook 使用 markdown 格式渲染 AI 分析
-        ai_content = _render_ai_analysis(ai_analysis, "wework")
-        # 提取 AI 分析统计数据
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-            }
+    # 渲染 AI 分析内容并提取统计数据（通用 Webhook 使用 markdown 格式）
+    ai_content = _render_ai_analysis(ai_analysis, "wework") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 获取分批内容
     # 使用 'wework' 作为 format_type 以获取 markdown 格式的通用输出
@@ -1362,7 +1270,6 @@ def send_to_generic_webhook(
         standalone_data=standalone_data,
         ai_stats=ai_stats,
         report_type=report_type,
-        github_items=github_items,
     )
 
     # 统一添加批次头部
