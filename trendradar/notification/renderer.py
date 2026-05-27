@@ -12,7 +12,7 @@ from trendradar.report.formatter import format_title_for_platform
 
 
 # 默认区域顺序
-DEFAULT_REGION_ORDER = ["hotlist", "rss", "new_items", "standalone", "ai_analysis"]
+DEFAULT_REGION_ORDER = ["hotlist", "rss", "new_items", "standalone", "ai_analysis", "github"]
 
 
 def render_feishu_content(
@@ -24,8 +24,9 @@ def render_feishu_content(
     get_time_func: Optional[Callable[[], datetime]] = None,
     rss_items: Optional[list] = None,
     show_new_section: bool = True,
+    github_items: Optional[list] = None,
 ) -> str:
-    """渲染飞书通知内容（支持热榜+RSS合并）
+    """渲染飞书通知内容（支持热榜+RSS合并+GitHub）
 
     Args:
         report_data: 报告数据字典，包含 stats, new_titles, failed_ids, total_new_count
@@ -36,6 +37,7 @@ def render_feishu_content(
         get_time_func: 获取当前时间的函数（可选，默认使用 datetime.now()）
         rss_items: RSS 条目列表（可选，用于合并推送）
         show_new_section: 是否显示新增热点区域
+        github_items: GitHub 项目列表（可选，用于合并推送）
 
     Returns:
         格式化的飞书消息内容
@@ -57,23 +59,17 @@ def render_feishu_content(
             sequence_display = f"<font color='grey'>[{i + 1}/{total_count}]</font>"
 
             if count >= 10:
-                stats_content += f"🔥 {sequence_display} **{word}** : <font color='red'>{count}</font> 条\n\n"
+                stats_content += f"🔥 {sequence_display} **{word}** : <font color='red'>{count}</font> 条\n"
             elif count >= 5:
-                stats_content += f"📈 {sequence_display} **{word}** : <font color='orange'>{count}</font> 条\n\n"
+                stats_content += f"📈 {sequence_display} **{word}** : <font color='orange'>{count}</font> 条\n"
             else:
-                stats_content += f"📌 {sequence_display} **{word}** : {count} 条\n\n"
+                stats_content += f"📌 {sequence_display} **{word}** : {count} 条\n"
 
             for j, title_data in enumerate(stat["titles"], 1):
                 formatted_title = format_title_for_platform(
                     "feishu", title_data, show_source=True
                 )
                 stats_content += f"  {j}. {formatted_title}\n"
-
-                if j < len(stat["titles"]):
-                    stats_content += "\n"
-
-            if i < len(report_data["stats"]) - 1:
-                stats_content += f"\n{separator}\n\n"
 
     # 生成新增新闻部分
     new_titles_content = ""
@@ -102,11 +98,17 @@ def render_feishu_content(
     if rss_items:
         rss_content = _render_rss_section_feishu(rss_items, separator)
 
+    # GitHub 内容
+    github_content = ""
+    if github_items:
+        github_content = _render_github_section_feishu(github_items, separator)
+
     # 准备各区域内容映射
     region_contents = {
         "hotlist": stats_content,
         "new_items": new_titles_content,
         "rss": rss_content,
+        "github": github_content,
     }
 
     # 按 region_order 顺序组装内容
@@ -155,8 +157,9 @@ def render_dingtalk_content(
     get_time_func: Optional[Callable[[], datetime]] = None,
     rss_items: Optional[list] = None,
     show_new_section: bool = True,
+    github_items: Optional[list] = None,
 ) -> str:
-    """渲染钉钉通知内容（支持热榜+RSS合并）
+    """渲染钉钉通知内容（支持热榜+RSS合并+GitHub）
 
     Args:
         report_data: 报告数据字典，包含 stats, new_titles, failed_ids, total_new_count
@@ -166,6 +169,7 @@ def render_dingtalk_content(
         get_time_func: 获取当前时间的函数（可选，默认使用 datetime.now()）
         rss_items: RSS 条目列表（可选，用于合并推送）
         show_new_section: 是否显示新增热点区域
+        github_items: GitHub 项目列表（可选，用于合并推送）
 
     Returns:
         格式化的钉钉消息内容
@@ -178,8 +182,11 @@ def render_dingtalk_content(
     )
     now = get_time_func() if get_time_func else datetime.now()
 
-    # 头部信息由 splitter 统一构建，此处不再重复
-    header_content = ""
+    # 头部信息
+    header_content = f"**总新闻数：** {total_titles}\n\n"
+    header_content += f"**时间：** {now.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+    header_content += "**类型：** 热点分析报告\n\n"
+    header_content += "---\n\n"
 
     # 生成热点词汇统计部分
     stats_content = ""
@@ -195,23 +202,17 @@ def render_dingtalk_content(
             sequence_display = f"[{i + 1}/{total_count}]"
 
             if count >= 10:
-                stats_content += f"🔥 {sequence_display} **{word}** : **{count}** 条\n\n"
+                stats_content += f"🔥 {sequence_display} **{word}** : **{count}** 条\n"
             elif count >= 5:
-                stats_content += f"📈 {sequence_display} **{word}** : **{count}** 条\n\n"
+                stats_content += f"📈 {sequence_display} **{word}** : **{count}** 条\n"
             else:
-                stats_content += f"📌 {sequence_display} **{word}** : {count} 条\n\n"
+                stats_content += f"📌 {sequence_display} **{word}** : {count} 条\n"
 
             for j, title_data in enumerate(stat["titles"], 1):
                 formatted_title = format_title_for_platform(
                     "dingtalk", title_data, show_source=True
                 )
                 stats_content += f"  {j}. {formatted_title}\n"
-
-                if j < len(stat["titles"]):
-                    stats_content += "\n"
-
-            if i < len(report_data["stats"]) - 1:
-                stats_content += "\n---\n\n"
 
     # 生成新增新闻部分
     new_titles_content = ""
@@ -238,11 +239,17 @@ def render_dingtalk_content(
     if rss_items:
         rss_content = _render_rss_section_markdown(rss_items)
 
+    # GitHub 内容
+    github_content = ""
+    if github_items:
+        github_content = _render_github_section_markdown(github_items)
+
     # 准备各区域内容映射
     region_contents = {
         "hotlist": stats_content,
         "new_items": new_titles_content,
         "rss": rss_content,
+        "github": github_content,
     }
 
     # 按 region_order 顺序组装内容
@@ -297,12 +304,12 @@ def _render_rss_section_feishu(rss_items: list, separator: str = "---") -> str:
             feeds_map[feed_id] = []
         feeds_map[feed_id].append(item)
 
-    text_content = f"📰 **RSS 订阅更新** (共 {len(rss_items)} 条)\n\n"
+    text_content = f"📰 **RSS 订阅更新** (共 {len(rss_items)} 条)\n"
 
     for feed_id, items in feeds_map.items():
         feed_name = items[0].get("feed_name", feed_id) if items else feed_id
 
-        text_content += f"**{feed_name}** ({len(items)} 条)\n\n"
+        text_content += f"**{feed_name}** ({len(items)} 条)\n"
 
         for i, item in enumerate(items, 1):
             title = item.get("title", "")
@@ -318,9 +325,6 @@ def _render_rss_section_feishu(rss_items: list, separator: str = "---") -> str:
                 text_content += f" <font color='grey'>- {published_at}</font>"
 
             text_content += "\n"
-
-            if i < len(items):
-                text_content += "\n"
 
         text_content += "\n"
 
@@ -340,7 +344,7 @@ def _render_rss_section_markdown(rss_items: list) -> str:
             feeds_map[feed_id] = []
         feeds_map[feed_id].append(item)
 
-    text_content = f"📰 **RSS 订阅更新** (共 {len(rss_items)} 条)\n\n"
+    text_content = f"📰 **RSS 订阅更新** (共 {len(rss_items)} 条)\n"
 
     for feed_id, items in feeds_map.items():
         feed_name = items[0].get("feed_name", feed_id) if items else feed_id
@@ -361,6 +365,79 @@ def _render_rss_section_markdown(rss_items: list) -> str:
                 text_content += f" `{published_at}`"
 
             text_content += "\n"
+
+        text_content += "\n"
+
+    return text_content.rstrip("\n")
+
+
+# === GitHub 内容渲染辅助函数（用于合并推送） ===
+
+def _render_github_section_feishu(github_items: list, separator: str = "---") -> str:
+    """渲染 GitHub 内容区块（飞书格式，用于合并推送）"""
+    if not github_items:
+        return ""
+
+    text_content = f"🐙 **GitHub 热门项目** (共 {len(github_items)} 个)\n"
+
+    for i, item in enumerate(github_items, 1):
+        title = item.get("title", "")
+        url = item.get("url", "")
+        description = item.get("description", "")
+        language = item.get("language", "")
+        stars = item.get("stars", 0)
+
+        if url:
+            text_content += f"  {i}. [{title}]({url})"
+        else:
+            text_content += f"  {i}. {title}"
+
+        if description:
+            text_content += f"\n      <font color='grey'>{description[:100]}{'...' if len(description) > 100 else ''}</font>"
+
+        meta_parts = []
+        if language:
+            meta_parts.append(f"📋 {language}")
+        if stars:
+            meta_parts.append(f"⭐ {stars}")
+        if meta_parts:
+            text_content += f"\n      <font color='grey'>{' · '.join(meta_parts)}</font>"
+
+        text_content += "\n"
+
+    return text_content.rstrip("\n")
+
+
+def _render_github_section_markdown(github_items: list) -> str:
+    """渲染 GitHub 内容区块（通用 Markdown 格式，用于合并推送）"""
+    if not github_items:
+        return ""
+
+    text_content = f"🐙 **GitHub 热门项目** (共 {len(github_items)} 个)\n"
+
+    for i, item in enumerate(github_items, 1):
+        title = item.get("title", "")
+        url = item.get("url", "")
+        description = item.get("description", "")
+        language = item.get("language", "")
+        stars = item.get("stars", 0)
+
+        if url:
+            text_content += f"  {i}. [{title}]({url})"
+        else:
+            text_content += f"  {i}. {title}"
+
+        if description:
+            desc_short = description[:100] + ("..." if len(description) > 100 else "")
+            text_content += f"\n      {desc_short}"
+
+        meta_parts = []
+        if language:
+            meta_parts.append(f"📋 {language}")
+        if stars:
+            meta_parts.append(f"⭐ {stars}")
+        if meta_parts:
+            text_content += f"\n      {' · '.join(meta_parts)}"
 
         text_content += "\n"
 
