@@ -152,6 +152,7 @@ def split_content_into_batches(
     ai_stats: Optional[Dict] = None,
     report_type: str = "热点分析报告",
     show_new_section: bool = True,
+    github_items: Optional[list] = None,
 ) -> List[str]:
     """分批处理消息内容，确保词组标题+至少第一条新闻的完整性（支持热榜+RSS合并+AI分析+独立展示区）
 
@@ -923,6 +924,28 @@ def split_content_into_batches(
             current_batch, current_batch_has_content, batches = process_ai_section(
                 current_batch, current_batch_has_content, batches, add_separator
             )
+        elif region == "github":
+            # 处理 GitHub 热门项目
+            if github_items:
+                github_section = "\n" + b_s + "GitHub 热门项目" + b_e + "\n"
+                for item in github_items:
+                    stars = item.get("stars", 0)
+                    lang = item.get("language", "")
+                    desc = item.get("description", "")
+                    title = item.get("title", "")
+                    url = item.get("url", "")
+                    line = f"• {title}"
+                    if stars:
+                        line += f" ⭐{stars}"
+                    if lang:
+                        line += f" [{lang}]"
+                    if desc:
+                        line += f"\n  {desc}"
+                    if url:
+                        line += f"\n  {url}"
+                    github_section += line + "\n"
+                current_batch += github_section
+                current_batch_has_content = True
 
         # 检查该区域是否产生了内容
         region_produced_content = (
