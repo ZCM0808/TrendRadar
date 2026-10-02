@@ -1,0 +1,27 @@
+name: Keepalive Workflow
+
+on:
+  schedule:
+    # 每 25 天在 00:00 (UTC) 自动触发一次，永久重置 GitHub 60 天无提交休眠倒计时
+    - cron: "0 0 */25 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    name: Prevent Inactivity Suspension
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update keepalive timestamp
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p .github
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > .github/keepalive.txt
+          git add .github/keepalive.txt
+          git diff --quiet && git diff --staged --quiet || (git commit -m "chore(keepalive): update heartbeat to prevent workflow inactivity [skip ci]" && git push)
