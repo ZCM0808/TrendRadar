@@ -170,13 +170,13 @@ class NotificationDispatcher:
         # debug 模式：输出完整 prompt、AI 原始响应、逐条对照
         if self.config.get("DEBUG", False):
             if result.prompt:
-                print(f"[翻译][DEBUG] === 发送给 AI 的 Prompt ===")
+                print("[翻译][DEBUG] === 发送给 AI 的 Prompt ===")
                 print(result.prompt)
-                print(f"[翻译][DEBUG] === Prompt 结束 ===")
+                print("[翻译][DEBUG] === Prompt 结束 ===")
             if result.raw_response:
-                print(f"[翻译][DEBUG] === AI 原始响应 ===")
+                print("[翻译][DEBUG] === AI 原始响应 ===")
                 print(result.raw_response)
-                print(f"[翻译][DEBUG] === 响应结束 ===")
+                print("[翻译][DEBUG] === 响应结束 ===")
             # 行数不匹配警告
             expected = len(titles_to_translate)
             if result.parsed_count != expected:
@@ -226,9 +226,10 @@ class NotificationDispatcher:
         standalone_data: Optional[Dict] = None,
         skip_translation: bool = False,
         github_items: Optional[List[Dict]] = None,
+        worldmonitor_data: Optional[Dict] = None,
     ) -> Dict[str, bool]:
         """
-        分发通知到所有已配置的渠道（支持热榜+RSS合并推送+AI分析+独立展示区）
+        分发通知到所有已配置的渠道（支持热榜+RSS合并推送+AI分析+独立展示区+World Monitor）
 
         Args:
             report_data: 报告数据（由 prepare_report_data 生成）
@@ -242,6 +243,7 @@ class NotificationDispatcher:
             ai_analysis: AI 分析结果（可选）
             standalone_data: 独立展示区数据（可选）
             skip_translation: 跳过翻译（当数据已在上游翻译过时使用）
+            worldmonitor_data: World Monitor 全球态势情报数据（可选）
 
         Returns:
             Dict[str, bool]: 每个渠道的发送结果，key 为渠道名，value 为是否成功
@@ -268,28 +270,28 @@ class NotificationDispatcher:
         if self.config.get("FEISHU_WEBHOOK_URL"):
             results["feishu"] = self._send_feishu(
                 report_data, report_type, update_info, proxy_url, mode, rss_items, rss_new_items,
-                ai_analysis, display_regions, standalone_data, github_items
+                ai_analysis, display_regions, standalone_data, github_items, worldmonitor_data
             )
 
         # 钉钉
         if self.config.get("DINGTALK_WEBHOOK_URL"):
             results["dingtalk"] = self._send_dingtalk(
                 report_data, report_type, update_info, proxy_url, mode, rss_items, rss_new_items,
-                ai_analysis, display_regions, standalone_data, github_items
+                ai_analysis, display_regions, standalone_data, github_items, worldmonitor_data
             )
 
         # 企业微信
         if self.config.get("WEWORK_WEBHOOK_URL"):
             results["wework"] = self._send_wework(
                 report_data, report_type, update_info, proxy_url, mode, rss_items, rss_new_items,
-                ai_analysis, display_regions, standalone_data, github_items
+                ai_analysis, display_regions, standalone_data, github_items, worldmonitor_data
             )
 
         # Telegram（需要配对验证）
         if self.config.get("TELEGRAM_BOT_TOKEN") and self.config.get("TELEGRAM_CHAT_ID"):
             results["telegram"] = self._send_telegram(
                 report_data, report_type, update_info, proxy_url, mode, rss_items, rss_new_items,
-                ai_analysis, display_regions, standalone_data, github_items
+                ai_analysis, display_regions, standalone_data, github_items, worldmonitor_data
             )
 
         # ntfy（需要配对验证）
@@ -373,12 +375,14 @@ class NotificationDispatcher:
         ai_analysis: Optional[AIAnalysisResult] = None,
         standalone_data: Optional[Dict] = None,
         github_items: Optional[List[Dict]] = None,
+        worldmonitor_data: Optional[Dict] = None,
     ) -> tuple:
-        """根据 display_regions 过滤各区域数据，返回 (report_data, rss_items, rss_new_items, ai_analysis, standalone_data, github_items)"""
+        """根据 display_regions 过滤各区域数据，返回 (report_data, rss_items, rss_new_items, ai_analysis, standalone_data, github_items, worldmonitor_data)"""
         display_regions = display_regions or {}
         if not display_regions.get("HOTLIST", True):
             report_data = {"stats": [], "failed_ids": [], "new_titles": [], "id_to_name": {}}
         show_rss = display_regions.get("RSS", True)
+        show_wm = display_regions.get("WORLDMONITOR", True)
         return (
             report_data,
             rss_items if show_rss else None,
@@ -386,6 +390,7 @@ class NotificationDispatcher:
             ai_analysis if display_regions.get("AI_ANALYSIS", True) else None,
             standalone_data if display_regions.get("STANDALONE", False) else None,
             github_items if display_regions.get("GITHUB", True) else None,
+            worldmonitor_data if show_wm else None,
         )
 
     def _send_feishu(
@@ -401,10 +406,11 @@ class NotificationDispatcher:
         display_regions: Optional[Dict] = None,
         standalone_data: Optional[Dict] = None,
         github_items: Optional[List[Dict]] = None,
+        worldmonitor_data: Optional[Dict] = None,
     ) -> bool:
-        """发送到飞书（多账号，支持热榜+RSS合并+AI分析+独立展示区）"""
-        rd, ri, rn, ai, sd, gh = self._apply_display_regions(
-            report_data, display_regions, rss_items, rss_new_items, ai_analysis, standalone_data, github_items
+        """发送到飞书（多账号，支持热榜+RSS合并+AI分析+独立展示区+World Monitor）"""
+        rd, ri, rn, ai, sd, gh, wm = self._apply_display_regions(
+            report_data, display_regions, rss_items, rss_new_items, ai_analysis, standalone_data, github_items, worldmonitor_data
         )
 
         return self._send_to_multi_accounts(
@@ -428,6 +434,7 @@ class NotificationDispatcher:
                 display_regions=display_regions or {},
                 standalone_data=sd,
                 github_items=gh,
+                worldmonitor_data=wm,
             ),
         )
 
@@ -444,10 +451,11 @@ class NotificationDispatcher:
         display_regions: Optional[Dict] = None,
         standalone_data: Optional[Dict] = None,
         github_items: Optional[List[Dict]] = None,
+        worldmonitor_data: Optional[Dict] = None,
     ) -> bool:
-        """发送到钉钉（多账号，支持热榜+RSS合并+AI分析+独立展示区）"""
-        rd, ri, rn, ai, sd, gh = self._apply_display_regions(
-            report_data, display_regions, rss_items, rss_new_items, ai_analysis, standalone_data, github_items
+        """发送到钉钉（多账号，支持热榜+RSS合并+AI分析+独立展示区+World Monitor）"""
+        rd, ri, rn, ai, sd, gh, wm = self._apply_display_regions(
+            report_data, display_regions, rss_items, rss_new_items, ai_analysis, standalone_data, github_items, worldmonitor_data
         )
 
         return self._send_to_multi_accounts(
@@ -470,6 +478,7 @@ class NotificationDispatcher:
                 display_regions=display_regions or {},
                 standalone_data=sd,
                 github_items=gh,
+                worldmonitor_data=wm,
             ),
         )
 
@@ -486,10 +495,11 @@ class NotificationDispatcher:
         display_regions: Optional[Dict] = None,
         standalone_data: Optional[Dict] = None,
         github_items: Optional[List[Dict]] = None,
+        worldmonitor_data: Optional[Dict] = None,
     ) -> bool:
-        """发送到企业微信（多账号，支持热榜+RSS合并+AI分析+独立展示区）"""
-        rd, ri, rn, ai, sd, gh = self._apply_display_regions(
-            report_data, display_regions, rss_items, rss_new_items, ai_analysis, standalone_data, github_items
+        """发送到企业微信（多账号，支持热榜+RSS合并+AI分析+独立展示区+World Monitor）"""
+        rd, ri, rn, ai, sd, gh, wm = self._apply_display_regions(
+            report_data, display_regions, rss_items, rss_new_items, ai_analysis, standalone_data, github_items, worldmonitor_data
         )
 
         return self._send_to_multi_accounts(
@@ -513,6 +523,7 @@ class NotificationDispatcher:
                 display_regions=display_regions or {},
                 standalone_data=sd,
                 github_items=gh,
+                worldmonitor_data=wm,
             ),
         )
 
@@ -529,10 +540,11 @@ class NotificationDispatcher:
         display_regions: Optional[Dict] = None,
         standalone_data: Optional[Dict] = None,
         github_items: Optional[List[Dict]] = None,
+        worldmonitor_data: Optional[Dict] = None,
     ) -> bool:
-        """发送到 Telegram（多账号，需验证 token 和 chat_id 配对，支持热榜+RSS合并+AI分析+独立展示区）"""
-        report_data, rss_items, rss_new_items, ai_analysis, standalone_data, github_items = self._apply_display_regions(
-            report_data, display_regions, rss_items, rss_new_items, ai_analysis, standalone_data, github_items
+        """发送到 Telegram（多账号，需验证 token 和 chat_id 配对，支持热榜+RSS合并+AI分析+独立展示区+World Monitor）"""
+        rd, ri, rn, ai, sd, gh, wm = self._apply_display_regions(
+            report_data, display_regions, rss_items, rss_new_items, ai_analysis, standalone_data, github_items, worldmonitor_data
         )
         display_regions = display_regions or {}
 
@@ -562,7 +574,7 @@ class NotificationDispatcher:
                 result = send_to_telegram(
                     bot_token=token,
                     chat_id=chat_id,
-                    report_data=report_data,
+                    report_data=rd,
                     report_type=report_type,
                     update_info=update_info,
                     proxy_url=proxy_url,
@@ -571,12 +583,13 @@ class NotificationDispatcher:
                     batch_size=self.config.get("MESSAGE_BATCH_SIZE", 4000),
                     batch_interval=self.config.get("BATCH_SEND_INTERVAL", 1.0),
                     split_content_func=self.split_content_func,
-                    rss_items=rss_items,
-                    rss_new_items=rss_new_items,
-                    ai_analysis=ai_analysis,
+                    rss_items=ri,
+                    rss_new_items=rn,
+                    ai_analysis=ai,
                     display_regions=display_regions,
-                    standalone_data=standalone_data,
-                    github_items=github_items,
+                    standalone_data=sd,
+                    github_items=gh,
+                    worldmonitor_data=wm,
                 )
                 results.append(result)
 

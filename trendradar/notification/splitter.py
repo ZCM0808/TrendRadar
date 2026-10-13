@@ -129,7 +129,7 @@ DEFAULT_BATCH_SIZES = {
 }
 
 # 默认区域顺序
-DEFAULT_REGION_ORDER = ["hotlist", "rss", "new_items", "standalone", "ai_analysis", "github"]
+DEFAULT_REGION_ORDER = ["worldmonitor", "hotlist", "rss", "new_items", "standalone", "ai_analysis", "github"]
 
 
 def split_content_into_batches(
@@ -153,6 +153,7 @@ def split_content_into_batches(
     report_type: str = "热点分析报告",
     show_new_section: bool = True,
     github_items: Optional[list] = None,
+    worldmonitor_data: Optional[Dict] = None,
 ) -> List[str]:
     """分批处理消息内容，确保词组标题+至少第一条新闻的完整性（支持热榜+RSS合并+GitHub+AI分析+独立展示区）
 
@@ -333,6 +334,8 @@ def split_content_into_batches(
         and not ai_content  # 有 AI 内容时不返回"暂无匹配"
         and not rss_items  # 有 RSS 内容时也不返回
         and not standalone_data  # 有独立展示区数据时也不返回
+        and not github_items  # 有 GitHub 内容时也不返回
+        and not worldmonitor_data  # 有 World Monitor 内容时也不返回
     ):
         if mode == "incremental":
             mode_text = "增量模式下暂无新增匹配的热点词汇"
@@ -561,17 +564,17 @@ def split_content_into_batches(
             if i < len(report_data["stats"]) - 1:
                 separator = ""
                 if format_type in ("wework", "bark"):
-                    separator = f"\n"
+                    separator = "\n"
                 elif format_type == "telegram":
-                    separator = f"\n"
+                    separator = "\n"
                 elif format_type == "ntfy":
-                    separator = f"\n"
+                    separator = "\n"
                 elif format_type == "feishu":
-                    separator = f"\n"
+                    separator = "\n"
                 elif format_type == "dingtalk":
-                    separator = f"\n"
+                    separator = "\n"
                 elif format_type == "slack":
-                    separator = f"\n"
+                    separator = "\n"
 
                 test_content = current_batch + separator
                 if (
@@ -791,8 +794,6 @@ def split_content_into_batches(
 
             # AI 内容可能很长，按行拆分成多个批次
             footer_size = len(base_footer.encode("utf-8"))
-            header_size = len(base_header.encode("utf-8"))
-            available = max_bytes - footer_size - header_size
 
             ai_lines = ai_content.split("\n")
             current_batch = base_header
@@ -856,7 +857,14 @@ def split_content_into_batches(
         # 决定是否需要添加分割线（第一个有内容的区域不需要）
         add_separator = has_region_content
 
-        if region == "hotlist":
+        if region == "worldmonitor":
+            # 处理 World Monitor 全球态势情报
+            current_batch, current_batch_has_content, batches = _process_worldmonitor_section(
+                worldmonitor_data, format_type, feishu_separator,
+                current_batch, current_batch_has_content, batches, add_separator,
+                max_bytes=max_bytes
+            )
+        elif region == "hotlist":
             # 处理热榜统计
             current_batch, current_batch_has_content, batches = process_stats_section(
                 current_batch, current_batch_has_content, batches, add_separator
@@ -912,15 +920,15 @@ def split_content_into_batches(
     if report_data["failed_ids"]:
         failed_header = ""
         if format_type == "wework":
-            failed_header = f"\n\n\n\n⚠️ **数据获取失败的平台：**\n\n"
+            failed_header = "\n\n\n\n⚠️ **数据获取失败的平台：**\n\n"
         elif format_type == "telegram":
-            failed_header = f"\n\n⚠️ 数据获取失败的平台：\n\n"
+            failed_header = "\n\n⚠️ 数据获取失败的平台：\n\n"
         elif format_type == "ntfy":
-            failed_header = f"\n\n⚠️ **数据获取失败的平台：**\n\n"
+            failed_header = "\n\n⚠️ **数据获取失败的平台：**\n\n"
         elif format_type == "feishu":
             failed_header = f"\n{feishu_separator}\n\n⚠️ **数据获取失败的平台：**\n\n"
         elif format_type == "dingtalk":
-            failed_header = f"\n---\n\n⚠️ **数据获取失败的平台：**\n\n"
+            failed_header = "\n---\n\n⚠️ **数据获取失败的平台：**\n\n"
 
         test_content = current_batch + failed_header
         if (
@@ -1990,5 +1998,131 @@ def _process_github_section(
         else:
             current_batch = test_content
             current_batch_has_content = True
+
+    return current_batch, current_batch_has_content, batches
+
+
+# === World Monitor 全球态势情报处理函数 ===
+
+def _format_worldmonitor_text(wm_data: Dict, format_type: str) -> str:
+    """按平台格式化 World Monitor 情报"""
+    if not wm_data:
+        return ""
+
+    is_tg = (format_type == "telegram")
+    is_fs = (format_type == "feishu")
+
+    # 标题
+    if is_tg:
+        lines = ["🌍 <b>World Monitor 全球地缘与宏观战略情报</b>\n"]
+    else:
+        lines = ["🌍 **World Monitor 全球地缘与宏观战略情报**\n"]
+
+    # 研判速览
+    summary = wm_data.get("summary", "")
+    if summary:
+        if is_tg:
+            lines.append(f"⚡ <b>战略研判速览</b>：<i>{summary}</i>\n")
+        elif is_fs:
+            lines.append(f"⚡ **战略研判速览**：<font color='orange'>{summary}</font>\n")
+        else:
+            lines.append(f"> ⚡ **战略研判速览**：{summary}\n")
+
+    # 国家不稳定指数 (CII)
+    cii = wm_data.get("cii", [])
+    if cii:
+        header = "🛡️ <b>国家不稳定风险 (CII 指数 Top)</b>" if is_tg else "🛡️ **国家不稳定风险 (CII 指数 Top)**"
+        lines.append(header)
+        for item in cii:
+            name = item.get("name", "")
+            score = item.get("score", 0)
+            adv = item.get("advisory", "")
+            trend = item.get("trend", "平稳")
+            if is_tg:
+                lines.append(f"  • <b>{name}</b>: <code>{score:.1f}分</code> | {adv} | 趋势: {trend}")
+            elif is_fs:
+                lines.append(f"  • **{name}**: <font color='red'>{score:.1f}分</font> | {adv} | 趋势: {trend}")
+            else:
+                lines.append(f"  • **{name}**: {score:.1f}分 | {adv} | 趋势: {trend}")
+        lines.append("")
+
+    # 海上咽喉
+    chokepoints = wm_data.get("chokepoints", [])
+    if chokepoints:
+        header = "🚢 <b>全球海上战略咽喉通航状态</b>" if is_tg else "🚢 **全球海上战略咽喉通航状态**"
+        lines.append(header)
+        for cp in chokepoints:
+            name = cp.get("name", "")
+            badge = cp.get("badge", "")
+            desc = cp.get("desc", "")
+            if is_tg:
+                lines.append(f"  • <b>{name}</b>: {badge}\n    <code>{desc}</code>")
+            elif is_fs:
+                lines.append(f"  • **{name}**: {badge}\n    <font color='grey'>{desc}</font>")
+            else:
+                lines.append(f"  • **{name}**: {badge}\n    `{desc}`")
+        lines.append("")
+
+    # 核心大宗商品与宏观金融指标
+    markets = wm_data.get("markets", [])
+    if markets:
+        header = "📈 <b>核心大宗商品与宏观金融指标</b>" if is_tg else "📈 **核心大宗商品与宏观金融指标**"
+        lines.append(header)
+        for m in markets:
+            name = m.get("name", "")
+            price = m.get("price", 0)
+            chg = m.get("change", 0)
+            unit = m.get("unit", "")
+            sign = "+" if chg > 0 else ""
+            if is_tg:
+                lines.append(f"  • <b>{name}</b>: {price:,.2f} {unit} ({sign}{chg:.2f}%)")
+            elif is_fs:
+                color = "red" if chg > 0 else "green"
+                lines.append(f"  • **{name}**: {price:,.2f} {unit} (<font color='{color}'>{sign}{chg:.2f}%</font>)")
+            else:
+                lines.append(f"  • **{name}**: {price:,.2f} {unit} ({sign}{chg:.2f}%)")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
+def _process_worldmonitor_section(
+    worldmonitor_data: Optional[Dict],
+    format_type: str,
+    feishu_separator: str,
+    current_batch: str,
+    current_batch_has_content: bool,
+    batches: list,
+    add_separator: bool = True,
+    max_bytes: int = 4000,
+) -> Tuple[str, bool, list]:
+    """处理 World Monitor 全球态势情报区块"""
+    if not worldmonitor_data:
+        return current_batch, current_batch_has_content, batches
+
+    wm_text = _format_worldmonitor_text(worldmonitor_data, format_type)
+    if not wm_text:
+        return current_batch, current_batch_has_content, batches
+
+    # 添加分隔符
+    separator = ""
+    if add_separator and current_batch_has_content:
+        if format_type == "feishu":
+            separator = f"\n{feishu_separator}\n\n"
+        elif format_type == "dingtalk":
+            separator = "\n---\n\n"
+        else:
+            separator = "\n\n"
+
+    section_content = separator + wm_text if current_batch_has_content else wm_text
+    test_content = current_batch + section_content
+
+    if len(test_content.encode("utf-8")) > max_bytes and current_batch_has_content:
+        _safe_append_batch(batches, current_batch, "", max_bytes, "")
+        current_batch = wm_text
+        current_batch_has_content = True
+    else:
+        current_batch = test_content
+        current_batch_has_content = True
 
     return current_batch, current_batch_has_content, batches
