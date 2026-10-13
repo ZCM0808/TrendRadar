@@ -250,16 +250,17 @@ display:
   # 要显示某个区域，需同时：1. 在此列表中  2. 下方 regions 对应开关为 true
   region_order:
     - worldmonitor                        # 🌍 World Monitor 全球态势与宏观战略情报
-    - new_items                           # 1️⃣ 新增热点区域
+    - ai_analysis                         # 5️⃣ AI 分析区域（包含宏观脉络总结与蝴蝶效应推演）
     - hotlist                             # 2️⃣ 热榜区域（关键词匹配 / AI 智能筛选）
+    - new_items                           # 1️⃣ 新增热点区域
     - rss                                 # 3️⃣ RSS 订阅区域
     - standalone                          # 4️⃣ 独立展示区
-    - ai_analysis                         # 5️⃣ AI 分析区域
     - github                              # 6️⃣ GitHub 热门项目区域
 
   # 推送区域开关（需配合上方 region_order 使用）
   regions:
     worldmonitor: true                # World Monitor 全球地缘态势与战略情报（true=显示, false=隐藏）
+    ai_analysis: true                 # AI 分析区域（包含宏观脉络总结与蝴蝶效应推演）（true=显示, false=隐藏）
     hotlist: true                     # 热榜区域：关键词匹配 / AI 智能筛选（true=显示, false=隐藏）
     new_items: false                  # 新增热点区域：含热榜新增 + RSS 新增（true=显示, false=隐藏）
                                       # 注：热点词汇统计中的新增标记🆕不受此配置影响
@@ -270,7 +271,6 @@ display:
 
     standalone: false                 # 独立展示区（完整热榜/RSS，不受关键词过滤）
     github: true                      # GitHub 热门项目区域
-    ai_analysis: false                 # AI 分析区域（已禁用）
 
   # 📋 独立展示区配置
   # 用途：将指定平台的完整热榜/RSS 数据独立提取，不受关键词过滤影响
@@ -397,7 +397,7 @@ ai:
   # 完整列表: https://docs.litellm.ai/docs/providers
   # 如果你对于看英文文档比较头疼，那么可以点击页面右下角的 【Ask AI】 ,用中文询问怎么配置
 
-  model: "gemini/gemini-2.5-flash"
+  model: "gemini/gemini-3.5-flash"
 
   api_key: ""                       # API Key（建议使用环境变量 AI_API_KEY）
   
@@ -430,8 +430,8 @@ ai:
   max_tokens: 5000                  # 最大生成 token 数
                                     # 注意：如果 API 不支持此参数(报 HTTP 400)，请设为 0 以禁用发送
   # 高级选项
-  num_retries: 1                    # 失败重试次数
-  fallback_models: []               # 备用模型列表（可选）
+  num_retries: 2                    # 失败重试次数
+  fallback_models: ["gemini/gemini-3.1-flash-lite", "gemini/gemini-3.8-flash"]               # 备用模型列表（可选）
                                     # 示例: ["openai/gpt-4o-mini", "openai/deepseek-ai/DeepSeek-V3"]
 
   # 额外参数（一般无需修改，删掉 # 号即可启用）
