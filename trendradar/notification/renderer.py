@@ -12,7 +12,7 @@ from trendradar.report.formatter import format_title_for_platform
 
 
 # 默认区域顺序
-DEFAULT_REGION_ORDER = ["hotlist", "rss", "new_items", "standalone", "ai_analysis", "github"]
+DEFAULT_REGION_ORDER = ["worldmonitor", "hotlist", "rss", "new_items", "standalone", "ai_analysis", "github"]
 
 
 def render_feishu_content(
@@ -25,8 +25,9 @@ def render_feishu_content(
     rss_items: Optional[list] = None,
     show_new_section: bool = True,
     github_items: Optional[list] = None,
+    worldmonitor_data: Optional[Dict] = None,
 ) -> str:
-    """渲染飞书通知内容（支持热榜+RSS合并+GitHub）
+    """渲染飞书通知内容（支持热榜+RSS合并+GitHub+World Monitor）
 
     Args:
         report_data: 报告数据字典，包含 stats, new_titles, failed_ids, total_new_count
@@ -38,12 +39,18 @@ def render_feishu_content(
         rss_items: RSS 条目列表（可选，用于合并推送）
         show_new_section: 是否显示新增热点区域
         github_items: GitHub 项目列表（可选，用于合并推送）
+        worldmonitor_data: World Monitor 全球态势情报数据（可选）
 
     Returns:
         格式化的飞书消息内容
     """
     if region_order is None:
         region_order = DEFAULT_REGION_ORDER
+
+    # World Monitor 全球态势内容
+    worldmonitor_content = ""
+    if worldmonitor_data:
+        worldmonitor_content = _render_worldmonitor_section_feishu(worldmonitor_data, separator)
 
     # 生成热点词汇统计部分
     stats_content = ""
@@ -105,6 +112,7 @@ def render_feishu_content(
 
     # 准备各区域内容映射
     region_contents = {
+        "worldmonitor": worldmonitor_content,
         "hotlist": stats_content,
         "new_items": new_titles_content,
         "rss": rss_content,
@@ -158,8 +166,9 @@ def render_dingtalk_content(
     rss_items: Optional[list] = None,
     show_new_section: bool = True,
     github_items: Optional[list] = None,
+    worldmonitor_data: Optional[Dict] = None,
 ) -> str:
-    """渲染钉钉通知内容（支持热榜+RSS合并+GitHub）
+    """渲染钉钉通知内容（支持热榜+RSS合并+GitHub+World Monitor）
 
     Args:
         report_data: 报告数据字典，包含 stats, new_titles, failed_ids, total_new_count
@@ -170,12 +179,18 @@ def render_dingtalk_content(
         rss_items: RSS 条目列表（可选，用于合并推送）
         show_new_section: 是否显示新增热点区域
         github_items: GitHub 项目列表（可选，用于合并推送）
+        worldmonitor_data: World Monitor 全球态势情报数据（可选）
 
     Returns:
         格式化的钉钉消息内容
     """
     if region_order is None:
         region_order = DEFAULT_REGION_ORDER
+
+    # World Monitor 全球态势内容
+    worldmonitor_content = ""
+    if worldmonitor_data:
+        worldmonitor_content = _render_worldmonitor_section_markdown(worldmonitor_data)
 
     total_titles = sum(
         len(stat["titles"]) for stat in report_data["stats"] if stat["count"] > 0
@@ -246,6 +261,7 @@ def render_dingtalk_content(
 
     # 准备各区域内容映射
     region_contents = {
+        "worldmonitor": worldmonitor_content,
         "hotlist": stats_content,
         "new_items": new_titles_content,
         "rss": rss_content,
@@ -442,3 +458,100 @@ def _render_github_section_markdown(github_items: list) -> str:
         text_content += "\n"
 
     return text_content.rstrip("\n")
+
+
+# === World Monitor 内容渲染辅助函数（用于战略情报推送） ===
+
+def _render_worldmonitor_section_feishu(wm_data: Dict, separator: str = "---") -> str:
+    """渲染 World Monitor 全球态势情报（飞书格式）"""
+    if not wm_data:
+        return ""
+
+    lines = ["🌍 **World Monitor 全球地缘与宏观战略情报**\n"]
+
+    summary = wm_data.get("summary", "")
+    if summary:
+        lines.append(f"⚡ **战略研判速览**：<font color='orange'>{summary}</font>\n")
+
+    cii = wm_data.get("cii", [])
+    if cii:
+        lines.append("🛡️ **国家不稳定风险 (CII 指数 Top)**")
+        for item in cii:
+            name = item.get("name", "")
+            score = item.get("score", 0)
+            advisory = item.get("advisory", "")
+            trend = item.get("trend", "平稳")
+            lines.append(f"  • **{name}**: <font color='red'>{score:.1f}分</font> | {advisory} | 趋势: {trend}")
+        lines.append("")
+
+    chokepoints = wm_data.get("chokepoints", [])
+    if chokepoints:
+        lines.append("🚢 **全球海上战略咽喉通航状态**")
+        for cp in chokepoints:
+            name = cp.get("name", "")
+            badge = cp.get("badge", "")
+            desc = cp.get("desc", "")
+            lines.append(f"  • **{name}**: {badge}\n    <font color='grey'>{desc}</font>")
+        lines.append("")
+
+    markets = wm_data.get("markets", [])
+    if markets:
+        lines.append("📈 **核心大宗商品与宏观金融指标**")
+        for m in markets:
+            name = m.get("name", "")
+            price = m.get("price", 0)
+            chg = m.get("change", 0)
+            unit = m.get("unit", "")
+            sign = "+" if chg > 0 else ""
+            color = "red" if chg > 0 else "green"
+            lines.append(f"  • **{name}**: {price:,.2f} {unit} (<font color='{color}'>{sign}{chg:.2f}%</font>)")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
+def _render_worldmonitor_section_markdown(wm_data: Dict) -> str:
+    """渲染 World Monitor 全球态势情报（通用 Markdown 格式）"""
+    if not wm_data:
+        return ""
+
+    lines = ["🌍 **World Monitor 全球地缘与宏观战略情报**\n"]
+
+    summary = wm_data.get("summary", "")
+    if summary:
+        lines.append(f"> ⚡ **战略研判速览**：{summary}\n")
+
+    cii = wm_data.get("cii", [])
+    if cii:
+        lines.append("🛡️ **国家不稳定风险 (CII 指数 Top)**")
+        for item in cii:
+            name = item.get("name", "")
+            score = item.get("score", 0)
+            advisory = item.get("advisory", "")
+            trend = item.get("trend", "平稳")
+            lines.append(f"  • **{name}**: {score:.1f}分 | {advisory} | 趋势: {trend}")
+        lines.append("")
+
+    chokepoints = wm_data.get("chokepoints", [])
+    if chokepoints:
+        lines.append("🚢 **全球海上战略咽喉通航状态**")
+        for cp in chokepoints:
+            name = cp.get("name", "")
+            badge = cp.get("badge", "")
+            desc = cp.get("desc", "")
+            lines.append(f"  • **{name}**: {badge}\n    `{desc}`")
+        lines.append("")
+
+    markets = wm_data.get("markets", [])
+    if markets:
+        lines.append("📈 **核心大宗商品与宏观金融指标**")
+        for m in markets:
+            name = m.get("name", "")
+            price = m.get("price", 0)
+            chg = m.get("change", 0)
+            unit = m.get("unit", "")
+            sign = "+" if chg > 0 else ""
+            lines.append(f"  • **{name}**: {price:,.2f} {unit} ({sign}{chg:.2f}%)")
+        lines.append("")
+
+    return "\n".join(lines).strip()

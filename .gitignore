@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.aider*
+output/
+.ruff_cache/
+.mypy_cache/

@@ -244,6 +244,20 @@ def _load_github_config(config_data: Dict) -> Dict:
     }
 
 
+def _load_worldmonitor_config(config_data: Dict) -> Dict:
+    """加载 World Monitor 全球战略情报配置"""
+    wm = config_data.get("worldmonitor", {})
+    advanced = config_data.get("advanced", {})
+    advanced_crawler = advanced.get("crawler", {})
+    wm_proxy_url = wm.get("proxy_url", "") or advanced_crawler.get("default_proxy", "")
+
+    return {
+        "ENABLED": wm.get("enabled", True),
+        "PROXY_URL": wm_proxy_url,
+        "TIMEOUT": wm.get("timeout", 15),
+    }
+
+
 def _load_display_config(config_data: Dict) -> Dict:
     """加载推送内容显示配置"""
     display = config_data.get("display", {})
@@ -251,11 +265,11 @@ def _load_display_config(config_data: Dict) -> Dict:
     standalone = display.get("standalone", {})
 
     # 默认区域顺序
-    default_region_order = ["hotlist", "rss", "new_items", "standalone", "ai_analysis"]
+    default_region_order = ["worldmonitor", "hotlist", "rss", "new_items", "standalone", "ai_analysis"]
     region_order = display.get("region_order", default_region_order)
 
     # 验证 region_order 中的值是否合法
-    valid_regions = {"hotlist", "rss", "new_items", "standalone", "ai_analysis", "github"}
+    valid_regions = {"worldmonitor", "hotlist", "rss", "new_items", "standalone", "ai_analysis", "github"}
     region_order = [r for r in region_order if r in valid_regions]
 
     # 如果过滤后为空，使用默认顺序
@@ -267,6 +281,7 @@ def _load_display_config(config_data: Dict) -> Dict:
         "REGION_ORDER": region_order,
         # 区域开关
         "REGIONS": {
+            "WORLDMONITOR": regions.get("worldmonitor", True),
             "HOTLIST": regions.get("hotlist", True),
             "NEW_ITEMS": regions.get("new_items", True),
             "RSS": regions.get("rss", True),
@@ -608,6 +623,9 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
 
     # GitHub 配置
     config["GITHUB"] = _load_github_config(config_data)
+
+    # World Monitor 全球态势情报配置
+    config["WORLDMONITOR"] = _load_worldmonitor_config(config_data)
 
     # AI 模型共享配置
     config["AI"] = _load_ai_config(config_data)

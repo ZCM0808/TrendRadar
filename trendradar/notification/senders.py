@@ -93,9 +93,10 @@ def send_to_feishu(
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
     github_items: Optional[list] = None,
+    worldmonitor_data: Optional[Dict] = None,
 ) -> bool:
     """
-    发送到飞书（支持分批发送，支持热榜+RSS合并+GitHub+独立展示区）
+    发送到飞书（支持分批发送，支持热榜+RSS合并+GitHub+独立展示区+World Monitor）
 
     Args:
         webhook_url: 飞书 Webhook URL
@@ -154,6 +155,7 @@ def send_to_feishu(
         ai_stats=ai_stats,
         report_type=report_type,
         github_items=github_items,
+        worldmonitor_data=worldmonitor_data,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -240,9 +242,10 @@ def send_to_dingtalk(
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
     github_items: Optional[list] = None,
+    worldmonitor_data: Optional[Dict] = None,
 ) -> bool:
     """
-    发送到钉钉（支持分批发送，支持热榜+RSS合并+GitHub+独立展示区）
+    发送到钉钉（支持分批发送，支持热榜+RSS合并+GitHub+独立展示区+World Monitor）
 
     Args:
         webhook_url: 钉钉 Webhook URL
@@ -300,6 +303,7 @@ def send_to_dingtalk(
         ai_stats=ai_stats,
         report_type=report_type,
         github_items=github_items,
+        worldmonitor_data=worldmonitor_data,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -371,9 +375,10 @@ def send_to_wework(
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
     github_items: Optional[list] = None,
+    worldmonitor_data: Optional[Dict] = None,
 ) -> bool:
     """
-    发送到企业微信（支持分批发送，支持 markdown 和 text 两种格式，支持热榜+RSS合并+GitHub+独立展示区）
+    发送到企业微信（支持分批发送，支持 markdown 和 text 两种格式，支持热榜+RSS合并+GitHub+独立展示区+World Monitor）
 
     Args:
         webhook_url: 企业微信 Webhook URL
@@ -439,6 +444,7 @@ def send_to_wework(
         ai_stats=ai_stats,
         report_type=report_type,
         github_items=github_items,
+        worldmonitor_data=worldmonitor_data,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -512,9 +518,10 @@ def send_to_telegram(
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
     github_items: Optional[list] = None,
+    worldmonitor_data: Optional[Dict] = None,
 ) -> bool:
     """
-    发送到 Telegram（支持分批发送，支持热榜+RSS合并+GitHub+独立展示区）
+    发送到 Telegram（支持分批发送，支持热榜+RSS合并+GitHub+独立展示区+World Monitor）
 
     Args:
         bot_token: Telegram Bot Token
@@ -571,6 +578,7 @@ def send_to_telegram(
         ai_stats=ai_stats,
         report_type=report_type,
         github_items=github_items,
+        worldmonitor_data=worldmonitor_data,
     )
 
     # 统一添加批次头部（已预留空间，不会超限）
@@ -962,7 +970,7 @@ def send_to_ntfy(
                 )
                 try:
                     print(f"错误详情：{response.text}")
-                except:
+                except Exception:
                     pass
 
         except requests.exceptions.ConnectTimeout:
@@ -1138,7 +1146,7 @@ def send_to_bark(
                 )
                 try:
                     print(f"错误详情：{response.text}")
-                except:
+                except Exception:
                     pass
 
         except requests.exceptions.ConnectTimeout:

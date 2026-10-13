@@ -79,6 +79,15 @@ platforms:
       name: "知乎"
 
 
+# ===============================================================
+# 2.8 数据源 - World Monitor 全球地缘与宏观战略情报
+# ===============================================================
+worldmonitor:
+  enabled: true                       # 是否启用 World Monitor 采集
+  proxy_url: ""                       # 代理地址（留空为直连，CI/GitHub Actions 推荐留空；本地有需要可填如 http://127.0.0.1:3067）
+  timeout: 15                         # 请求超时（秒）
+
+
 
 # ===============================================================
 # 3. 数据源 - RSS 订阅
@@ -240,6 +249,7 @@ display:
   # 调整顺序：剪切粘贴整行即可
   # 要显示某个区域，需同时：1. 在此列表中  2. 下方 regions 对应开关为 true
   region_order:
+    - worldmonitor                        # 🌍 World Monitor 全球态势与宏观战略情报
     - new_items                           # 1️⃣ 新增热点区域
     - hotlist                             # 2️⃣ 热榜区域（关键词匹配 / AI 智能筛选）
     - rss                                 # 3️⃣ RSS 订阅区域
@@ -249,6 +259,7 @@ display:
 
   # 推送区域开关（需配合上方 region_order 使用）
   regions:
+    worldmonitor: true                # World Monitor 全球地缘态势与战略情报（true=显示, false=隐藏）
     hotlist: true                     # 热榜区域：关键词匹配 / AI 智能筛选（true=显示, false=隐藏）
     new_items: false                  # 新增热点区域：含热榜新增 + RSS 新增（true=显示, false=隐藏）
                                       # 注：热点词汇统计中的新增标记🆕不受此配置影响

@@ -580,7 +580,7 @@ class NewsAnalyzer:
             print(f"[AI] 分析出错 ({error_type}): {error_msg}")
             # 详细错误日志到 stderr
             import sys
-            print(f"[AI] 详细错误堆栈:", file=sys.stderr)
+            print("[AI] 详细错误堆栈:", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
             return AIAnalysisResult(success=False, error=f"{error_type}: {error_msg}")
 
@@ -920,15 +920,18 @@ class NewsAnalyzer:
         current_results: Optional[Dict] = None,
         schedule: ResolvedSchedule = None,
         github_items: Optional[List[Dict]] = None,
+        worldmonitor_data: Optional[Dict] = None,
     ) -> bool:
-        """统一的通知发送逻辑，包含所有判断条件，支持热榜+RSS合并推送+AI分析+独立展示区"""
+        """统一的通知发送逻辑，包含所有判断条件，支持热榜+RSS合并推送+AI分析+独立展示区+World Monitor"""
         has_notification = self._has_notification_configured()
         cfg = self.ctx.config
 
-        # 检查是否有有效内容（热榜或RSS）
+        # 检查是否有有效内容（热榜、RSS、GitHub 或 World Monitor）
         has_news_content = self._has_valid_content(stats, new_titles)
         has_rss_content = bool(rss_items and len(rss_items) > 0)
-        has_any_content = has_news_content or has_rss_content
+        has_github_content = bool(github_items and len(github_items) > 0)
+        has_wm_content = bool(worldmonitor_data)
+        has_any_content = has_news_content or has_rss_content or has_github_content or has_wm_content
 
         # 计算热榜匹配条数
         news_count = sum(len(stat.get("titles", [])) for stat in stats) if stats else 0
@@ -945,6 +948,10 @@ class NewsAnalyzer:
                 content_parts.append(f"热榜 {news_count} 条")
             if rss_count > 0:
                 content_parts.append(f"RSS {rss_count} 条")
+            if has_github_content:
+                content_parts.append(f"GitHub {len(github_items)} 条")
+            if has_wm_content:
+                content_parts.append("World Monitor 全球态势")
             total_count = news_count + rss_count
             print(f"[推送] 准备发送：{' + '.join(content_parts)}，合计 {total_count} 条")
 
@@ -993,6 +1000,7 @@ class NewsAnalyzer:
                 standalone_data=standalone_data,
                 skip_translation=True,
                 github_items=github_items,
+                worldmonitor_data=worldmonitor_data,
             )
 
             if not results:
@@ -1172,12 +1180,12 @@ class NewsAnalyzer:
 
             # 保存到存储后端
             if self.storage_manager.save_rss_data(rss_data):
-                print(f"[RSS] 数据已保存到存储后端")
+                print("[RSS] 数据已保存到存储后端")
 
                 # 处理 RSS 数据（按模式过滤）并返回用于合并推送
                 return self._process_rss_data_by_mode(rss_data)
             else:
-                print(f"[RSS] 数据保存失败")
+                print("[RSS] 数据保存失败")
                 return None, None, None, set()
 
         except ImportError as e:
@@ -1274,6 +1282,38 @@ class NewsAnalyzer:
             return None
         except Exception as e:
             print(f"[GitHub] 扫描失败: {e}")
+            return None
+
+    def _crawl_worldmonitor_data(self) -> Optional[Dict]:
+        """抓取 World Monitor 全球态势情报"""
+        wm_config = self.ctx.config.get("WORLDMONITOR", {})
+        if not wm_config.get("ENABLED", True):
+            return None
+
+        # 检查是否启用了 World Monitor 显示
+        display_regions = self.ctx.config.get("DISPLAY", {}).get("REGIONS", {})
+        if not display_regions.get("WORLDMONITOR", True):
+            return None
+
+        print("[WorldMonitor] 正在获取全球地缘与宏观战略情报...")
+        try:
+            from trendradar.crawler.worldmonitor import WorldMonitorFetcher
+
+            proxy_url = wm_config.get("PROXY_URL") or self.proxy_url
+            timeout = wm_config.get("TIMEOUT", 15)
+
+            fetcher = WorldMonitorFetcher(proxy_url=proxy_url, timeout=timeout)
+            data = fetcher.fetch_intelligence()
+            if data:
+                cii_count = len(data.get("cii", []))
+                cp_count = len(data.get("chokepoints", []))
+                mkt_count = len(data.get("markets", []))
+                print(f"[WorldMonitor] 成功获取全球情报：CII国家 {cii_count} 个，咽喉通道 {cp_count} 个，核心资产 {mkt_count} 个")
+            else:
+                print("[WorldMonitor] 获取数据为空")
+            return data
+        except Exception as e:
+            print(f"[WorldMonitor] 采集异常: {e}")
             return None
 
     def _is_english(self, text: str) -> bool:
@@ -1668,6 +1708,7 @@ class NewsAnalyzer:
         raw_rss_items: Optional[List[Dict]] = None,
         rss_new_urls: Optional[set] = None,
         github_items: Optional[List[Dict]] = None,
+        worldmonitor_data: Optional[Dict] = None,
     ) -> Optional[str]:
         """执行模式特定逻辑，支持热榜+RSS合并推送
 
@@ -1871,6 +1912,7 @@ class NewsAnalyzer:
                 current_results=results,
                 schedule=schedule,
                 github_items=github_items,
+                worldmonitor_data=worldmonitor_data,
             )
 
         # 打开浏览器（仅在非容器环境）
@@ -1900,12 +1942,16 @@ class NewsAnalyzer:
             # 抓取 GitHub 热门项目（如果启用）
             github_items = self._crawl_github_data()
 
-            # 执行模式策略，传递 RSS 数据和 GitHub 数据用于合并推送
+            # 抓取 World Monitor 全球态势情报（如果启用）
+            worldmonitor_data = self._crawl_worldmonitor_data()
+
+            # 执行模式策略，传递 RSS 数据、GitHub 数据和 World Monitor 数据用于合并推送
             self._execute_mode_strategy(
                 mode_strategy, results, id_to_name, failed_ids,
                 rss_items=rss_items, rss_new_items=rss_new_items,
                 raw_rss_items=raw_rss_items, rss_new_urls=rss_new_urls,
                 github_items=github_items,
+                worldmonitor_data=worldmonitor_data,
             )
 
         except Exception as e:
@@ -2436,14 +2482,14 @@ def _handle_status_commands(config: Dict) -> None:
         print(f"\n⏰ 当前时间: {now.strftime('%Y-%m-%d %H:%M:%S')} ({ctx.timezone})")
         print(f"📅 当前日期: {date_str}")
 
-        print(f"\n📋 调度信息:")
+        print("\n📋 调度信息:")
         print(f"  日计划: {schedule.day_plan}")
         if schedule.period_key:
             print(f"  当前时间段: {schedule.period_name or schedule.period_key} ({schedule.period_key})")
         else:
-            print(f"  当前时间段: 无（使用默认配置）")
+            print("  当前时间段: 无（使用默认配置）")
 
-        print(f"\n🔧 行为开关:")
+        print("\n🔧 行为开关:")
         print(f"  采集数据: {'✅ 是' if schedule.collect else '❌ 否'}")
         print(f"  AI 分析:  {'✅ 是' if schedule.analyze else '❌ 否'}")
         print(f"  推送通知: {'✅ 是' if schedule.push else '❌ 否'}")
@@ -2451,17 +2497,17 @@ def _handle_status_commands(config: Dict) -> None:
         print(f"  AI 模式:  {schedule.ai_mode}")
 
         if schedule.period_key:
-            print(f"\n🔁 一次性控制:")
+            print("\n🔁 一次性控制:")
             if schedule.once_analyze:
                 already_analyzed = scheduler.already_executed(schedule.period_key, "analyze", date_str)
                 print(f"  AI 分析:  仅一次 {'(今日已执行 ⚠️)' if already_analyzed else '(今日未执行 ✅)'}")
             else:
-                print(f"  AI 分析:  不限次数")
+                print("  AI 分析:  不限次数")
             if schedule.once_push:
                 already_pushed = scheduler.already_executed(schedule.period_key, "push", date_str)
                 print(f"  推送通知: 仅一次 {'(今日已执行 ⚠️)' if already_pushed else '(今日未执行 ✅)'}")
             else:
-                print(f"  推送通知: 不限次数")
+                print("  推送通知: 不限次数")
 
     except Exception as e:
         print(f"\n❌ 获取调度状态失败: {e}")
