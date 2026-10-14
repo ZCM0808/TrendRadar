@@ -251,17 +251,17 @@ display:
   region_order:
     - worldmonitor                        # 🌍 World Monitor 全球态势与宏观战略情报
     - ai_analysis                         # 5️⃣ AI 分析区域（包含宏观脉络总结与蝴蝶效应推演）
-    - hotlist                             # 2️⃣ 热榜区域（关键词匹配 / AI 智能筛选）
+    - github                              # 6️⃣ GitHub 热门项目区域
+    - hotlist                             # 2️⃣ 热榜区域（已在 regions 中关闭）
     - new_items                           # 1️⃣ 新增热点区域
     - rss                                 # 3️⃣ RSS 订阅区域
     - standalone                          # 4️⃣ 独立展示区
-    - github                              # 6️⃣ GitHub 热门项目区域
 
   # 推送区域开关（需配合上方 region_order 使用）
   regions:
     worldmonitor: true                # World Monitor 全球地缘态势与战略情报（true=显示, false=隐藏）
     ai_analysis: true                 # AI 分析区域（包含宏观脉络总结与蝴蝶效应推演）（true=显示, false=隐藏）
-    hotlist: true                     # 热榜区域：关键词匹配 / AI 智能筛选（true=显示, false=隐藏）
+    hotlist: false                    # 热榜区域明细列表（false=隐藏逐条零碎新闻，AI分析仍会全量接收并总结）
     new_items: false                  # 新增热点区域：含热榜新增 + RSS 新增（true=显示, false=隐藏）
                                       # 注：热点词汇统计中的新增标记🆕不受此配置影响
 
