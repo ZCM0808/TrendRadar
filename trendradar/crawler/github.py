@@ -9,8 +9,6 @@ GitHub 热门项目爬虫模块
 - 代理支持
 """
 
-import json
-import random
 import time
 from typing import Dict, List, Tuple, Optional
 
@@ -111,7 +109,7 @@ class GitHubFetcher:
                 data = response.json()
                 return data.get("items", []), data.get("total_count", 0)
             elif response.status_code == 403:
-                print(f"⚠️ GitHub API 速率限制，等待 60 秒...")
+                print("⚠️ GitHub API 速率限制，等待 60 秒...")
                 time.sleep(60)
                 return [], 0
             else:

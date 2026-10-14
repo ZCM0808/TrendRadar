@@ -140,11 +140,13 @@ def count_word_frequency(
 
     # 默认时间转换函数
     if convert_time_func is None:
-        convert_time_func = lambda x: x
+        def convert_time_func(x):
+            return x
 
     # 默认首次爬取检测函数
     if is_first_crawl_func is None:
-        is_first_crawl_func = lambda: True
+        def is_first_crawl_func():
+            return True
 
     # 如果没有配置词组，创建一个包含所有新闻的虚拟词组
     if not word_groups:
