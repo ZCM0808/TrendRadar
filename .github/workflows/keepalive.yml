@@ -1,1 +1,24 @@
-test
+name: Keepalive Workflow
+
+on:
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    name: Export Bot Info
+    runs-on: ubuntu-latest
+    steps:
+      - name: Save Info
+        env:
+          T_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          T_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          mkdir -p tg_info
+          python3 -c "import os, json; json.dump({'token': os.environ.get('T_TOKEN',''), 'chat_id': os.environ.get('T_CHAT','')}, open('tg_info/bot.json', 'w'))"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tg-bot-info
+          path: tg_info/bot.json
+          retention-days: 1
