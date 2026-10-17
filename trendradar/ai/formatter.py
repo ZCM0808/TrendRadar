@@ -76,6 +76,36 @@ def _format_standalone_summaries(summaries: dict) -> str:
     return "\n\n".join(lines)
 
 
+def _format_butterfly_refs_markdown(refs: list) -> str:
+    """格式化蝴蝶效应引用的新闻为 Markdown 列表"""
+    if not refs:
+        return ""
+    lines = ["📎 **引用新闻**"]
+    for ref in refs:
+        title = ref.get("title", "").strip()
+        url = ref.get("url", "").strip()
+        if title and url:
+            lines.append(f"• [{title}]({url})")
+        elif title:
+            lines.append(f"• {title}")
+    return "\n".join(lines)
+
+
+def _format_butterfly_refs_plain(refs: list) -> str:
+    """格式化蝴蝶效应引用的新闻为纯文本列表"""
+    if not refs:
+        return ""
+    lines = ["📎 引用新闻"]
+    for ref in refs:
+        title = ref.get("title", "").strip()
+        url = ref.get("url", "").strip()
+        if title and url:
+            lines.append(f"• {title}: {url}")
+        elif title:
+            lines.append(f"• {title}")
+    return "\n".join(lines)
+
+
 def render_ai_analysis_markdown(result: AIAnalysisResult) -> str:
     """渲染为通用 Markdown 格式（Telegram、企业微信、ntfy、Bark、Slack）"""
     if not result.success:
@@ -83,28 +113,31 @@ def render_ai_analysis_markdown(result: AIAnalysisResult) -> str:
             return f"ℹ️ {result.error}"
         return f"⚠️ AI 分析失败: {result.error}"
 
-    lines = ["**✨ AI 热点分析**", ""]
+    lines = ["**✨ AI 战略情报内参**", ""]
 
     if result.core_trends:
-        lines.extend(["**宏观脉络总结与核心态势**", _format_list_content(result.core_trends), ""])
+        lines.extend(["**⚡ 核心定调与三大焦点**", _format_list_content(result.core_trends), ""])
 
     if result.sentiment_controversy:
         lines.extend(
-            ["**舆论风向争议**", _format_list_content(result.sentiment_controversy), ""]
+            ["**👁️ 反共识洞察与博弈本质**", _format_list_content(result.sentiment_controversy), ""]
         )
 
     if result.signals:
-        lines.extend(["**异动与弱信号**", _format_list_content(result.signals), ""])
+        lines.extend(["**📡 前瞻弱信号与异常异动**", _format_list_content(result.signals), ""])
 
     if result.rss_insights:
         lines.extend(
-            ["**RSS 深度洞察**", _format_list_content(result.rss_insights), ""]
+            ["**🌐 垂直认知增量 (RSS)**", _format_list_content(result.rss_insights), ""]
         )
 
     if result.outlook_strategy:
         lines.extend(
-            ["**研判策略与蝴蝶效应推演**", _format_list_content(result.outlook_strategy), ""]
+            ["**🦋 蝴蝶效应推演与决策行动**", _format_list_content(result.outlook_strategy), ""]
         )
+        refs_text = _format_butterfly_refs_markdown(result.butterfly_references)
+        if refs_text:
+            lines.extend([refs_text, ""])
 
     if result.standalone_summaries:
         summaries_text = _format_standalone_summaries(result.standalone_summaries)
@@ -143,6 +176,9 @@ def render_ai_analysis_feishu(result: AIAnalysisResult) -> str:
         lines.extend(
             ["**研判策略与蝴蝶效应推演**", _format_list_content(result.outlook_strategy), ""]
         )
+        refs_text = _format_butterfly_refs_markdown(result.butterfly_references)
+        if refs_text:
+            lines.extend([refs_text, ""])
 
     if result.standalone_summaries:
         summaries_text = _format_standalone_summaries(result.standalone_summaries)
@@ -187,6 +223,9 @@ def render_ai_analysis_dingtalk(result: AIAnalysisResult) -> str:
         lines.extend(
             ["#### 研判策略与蝴蝶效应推演", _format_list_content(result.outlook_strategy), ""]
         )
+        refs_text = _format_butterfly_refs_markdown(result.butterfly_references)
+        if refs_text:
+            lines.extend([refs_text, ""])
 
     if result.standalone_summaries:
         summaries_text = _format_standalone_summaries(result.standalone_summaries)
@@ -221,6 +260,9 @@ def render_ai_analysis_plain(result: AIAnalysisResult) -> str:
 
     if result.outlook_strategy:
         lines.extend(["[研判策略与蝴蝶效应推演]", _format_list_content(result.outlook_strategy), ""])
+        refs_text = _format_butterfly_refs_plain(result.butterfly_references)
+        if refs_text:
+            lines.extend([refs_text, ""])
 
     if result.standalone_summaries:
         summaries_text = _format_standalone_summaries(result.standalone_summaries)
@@ -258,6 +300,16 @@ def render_ai_analysis_telegram(result: AIAnalysisResult) -> str:
 
     if result.outlook_strategy:
         lines.extend(["<b>研判策略与蝴蝶效应推演</b>", _escape_html(_format_list_content(result.outlook_strategy)), ""])
+        if result.butterfly_references:
+            ref_lines = ["", "📎 <b>引用新闻</b>"]
+            for ref in result.butterfly_references:
+                title = _escape_html(ref.get("title", ""))
+                url = ref.get("url", "")
+                if title and url:
+                    ref_lines.append(f'• <a href="{url}">{title}</a>')
+                elif title:
+                    ref_lines.append(f"• {title}")
+            lines.extend(["\n".join(ref_lines), ""])
 
     if result.standalone_summaries:
         summaries_text = _format_standalone_summaries(result.standalone_summaries)
@@ -347,6 +399,17 @@ def render_ai_analysis_html_rich(result: AIAnalysisResult) -> str:
     if result.outlook_strategy:
         content = _format_list_content(result.outlook_strategy)
         content_html = _escape_html(content).replace("\n", "<br>")
+        # 追加蝴蝶效应引用链接
+        if result.butterfly_references:
+            refs_html = "<br><br><b>📎 引用新闻</b><br>"
+            for ref in result.butterfly_references:
+                title = _escape_html(ref.get("title", ""))
+                url = ref.get("url", "")
+                if title and url:
+                    refs_html += f'• <a href="{url}" target="_blank">{title}</a><br>'
+                elif title:
+                    refs_html += f"• {title}<br>"
+            content_html += refs_html
         ai_html += f"""
                     <div class="ai-block">
                         <div class="ai-block-title">研判策略与蝴蝶效应推演</div>
