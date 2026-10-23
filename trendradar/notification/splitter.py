@@ -389,7 +389,13 @@ def split_content_into_batches(
             current_batch_has_content = True
 
         # 逐个处理词组（确保词组标题+第一条新闻的原子性）
-        for i, stat in enumerate(report_data["stats"]):
+        stats_to_process = report_data["stats"]
+        omitted_stats_count = 0
+        if format_type == "telegram" and len(stats_to_process) > 10:
+            omitted_stats_count = len(stats_to_process) - 10
+            stats_to_process = stats_to_process[:10]
+
+        for i, stat in enumerate(stats_to_process):
             word = stat["word"]
             count = stat["count"]
             sequence_display = f"[{i + 1}/{total_count}]"
@@ -489,7 +495,10 @@ def split_content_into_batches(
                 else:
                     formatted_title = f"{first_title_data['title']}"
 
-                first_news_line = f"  1. {formatted_title}\n"
+                if format_type == "telegram":
+                    first_news_line = f"  • {formatted_title}\n"
+                else:
+                    first_news_line = f"  1. {formatted_title}\n"
 
             # 原子性检查：词组标题+第一条新闻必须一起处理
             word_with_first_news = word_header + first_news_line
@@ -542,7 +551,10 @@ def split_content_into_batches(
                 else:
                     formatted_title = f"{title_data['title']}"
 
-                news_line = f"  {j + 1}. {formatted_title}\n"
+                if format_type == "telegram":
+                    news_line = f"  • {formatted_title}\n"
+                else:
+                    news_line = f"  {j + 1}. {formatted_title}\n"
 
                 test_content = current_batch + news_line
                 if (
@@ -561,12 +573,12 @@ def split_content_into_batches(
                     current_batch_has_content = True
 
             # 词组间分隔符
-            if i < len(report_data["stats"]) - 1:
+            if i < len(stats_to_process) - 1:
                 separator = ""
                 if format_type in ("wework", "bark"):
                     separator = "\n"
                 elif format_type == "telegram":
-                    separator = "\n"
+                    separator = ""
                 elif format_type == "ntfy":
                     separator = "\n"
                 elif format_type == "feishu":
@@ -582,6 +594,15 @@ def split_content_into_batches(
                     < max_bytes
                 ):
                     current_batch = test_content
+
+        if omitted_stats_count > 0:
+            omitted_line = f"\n<i>...其余 {omitted_stats_count} 个热点词组已收敛至完整网页报告</i>\n"
+            test_content = current_batch + omitted_line
+            if (
+                len(test_content.encode("utf-8")) + len(base_footer.encode("utf-8"))
+                < max_bytes
+            ):
+                current_batch = test_content
 
         return current_batch, current_batch_has_content, batches
 
@@ -1127,9 +1148,12 @@ def _process_rss_stats_section(
             else:
                 formatted_title = f"{first_title_data['title']}"
 
-            first_news_line = f"  1. {formatted_title}\n"
-            if len(stat["titles"]) > 1:
-                first_news_line += "\n"
+            if format_type == "telegram":
+                first_news_line = f"  • {formatted_title}\n"
+            else:
+                first_news_line = f"  1. {formatted_title}\n"
+                if len(stat["titles"]) > 1:
+                    first_news_line += "\n"
 
         # 原子性检查：关键词标题 + 第一条新闻必须一起处理
         word_with_first_news = word_header + first_news_line
@@ -1167,9 +1191,12 @@ def _process_rss_stats_section(
             else:
                 formatted_title = f"{title_data['title']}"
 
-            news_line = f"  {j + 1}. {formatted_title}\n"
-            if j < len(stat["titles"]) - 1:
-                news_line += "\n"
+            if format_type == "telegram":
+                news_line = f"  • {formatted_title}\n"
+            else:
+                news_line = f"  {j + 1}. {formatted_title}\n"
+                if j < len(stat["titles"]) - 1:
+                    news_line += "\n"
 
             test_content = current_batch + news_line
             if len(test_content.encode("utf-8")) + len(base_footer.encode("utf-8")) >= max_bytes:
@@ -1190,7 +1217,7 @@ def _process_rss_stats_section(
             if format_type in ("wework", "bark"):
                 separator = "\n\n\n\n"
             elif format_type == "telegram":
-                separator = "\n\n"
+                separator = ""
             elif format_type == "ntfy":
                 separator = "\n\n"
             elif format_type == "feishu":
