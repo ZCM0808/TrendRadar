@@ -23,6 +23,7 @@ class AIAnalysisResult:
     signals: str = ""                    # 异动与弱信号
     rss_insights: str = ""               # RSS 深度洞察
     outlook_strategy: str = ""           # 研判与策略建议
+    butterfly_references: List[Dict[str, str]] = field(default_factory=list)  # 蝴蝶效应引用 [{title, url}]
     standalone_summaries: Dict[str, str] = field(default_factory=dict)  # 独立展示区概括 {源ID: 概括}
 
     # 基础元数据
@@ -126,7 +127,7 @@ class AIAnalyzer:
         print(f"[AI] Key : {masked_key}")
 
         if api_base:
-            print(f"[AI] 接口: 存在自定义 API 端点")
+            print("[AI] 接口: 存在自定义 API 端点")
 
         timeout = self.ai_config.get("TIMEOUT", 120)
         max_tokens = self.ai_config.get("MAX_TOKENS", 5000)
@@ -199,7 +200,7 @@ class AIAnalyzer:
 
             # JSON 解析失败时的重试兜底（仅重试一次）
             if result.error and "JSON 解析错误" in result.error:
-                print(f"[AI] JSON 解析失败，尝试让 AI 修复...")
+                print("[AI] JSON 解析失败，尝试让 AI 修复...")
                 retry_result = self._retry_fix_json(response, result.error)
                 if retry_result and retry_result.success and not retry_result.error:
                     print("[AI] JSON 修复成功")
@@ -303,7 +304,12 @@ class AIAnalyzer:
 
                         appear_count = t.get("count", 1)
 
+                        # URL（供 AI 引用）
+                        url = t.get("url", "")
+
                         line += f" | 排名:{rank_str} | 时间:{time_str} | 出现:{appear_count}次"
+                        if url:
+                            line += f" | 链接:{url}"
 
                         # 开启完整时间线时，额外添加轨迹
                         if self.include_rank_timeline:
@@ -349,6 +355,11 @@ class AIAnalyzer:
                             line = f"- {title}"
                         if time_display:
                             line += f" | {time_display}"
+
+                        # URL（供 AI 引用）
+                        rss_url = t.get("url", "")
+                        if rss_url:
+                            line += f" | 链接:{rss_url}"
                         rss_lines.append(line)
 
                         rss_count += 1
@@ -625,6 +636,15 @@ class AIAnalyzer:
                 result.standalone_summaries = {
                     str(k): str(v) for k, v in summaries.items()
                 }
+
+            # 解析蝴蝶效应引用
+            refs = data.get("butterfly_references", [])
+            if isinstance(refs, list):
+                result.butterfly_references = [
+                    {"title": str(r.get("title", "")), "url": str(r.get("url", ""))}
+                    for r in refs
+                    if isinstance(r, dict) and r.get("title")
+                ]
 
             result.success = True
         except (KeyError, TypeError, AttributeError) as e:
