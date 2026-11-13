@@ -2065,6 +2065,7 @@ def _get_random_dax_tip() -> Optional[Dict[str, str]]:
 
 def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
     """格式化 DAX 技巧文本"""
+    import html as html_lib
     title = tip.get("title", "Power BI DAX 调优技巧")
     raw_content = tip.get("content", "").strip()
 
@@ -2073,7 +2074,7 @@ def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
 
     if is_tg:
         header = "💡 <b>每日 Power BI DAX 技巧精粹</b>\n"
-        title_line = f"🎯 <b>{title}</b>\n"
+        title_line = f"🎯 <b>{html_lib.escape(title)}</b>\n"
     else:
         header = "💡 **每日 Power BI DAX 技巧精粹**\n"
         title_line = f"🎯 **{title}**\n"
@@ -2088,10 +2089,12 @@ def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
             if not val_clean:
                 continue
             if is_tg:
+                val_escaped = html_lib.escape(val_clean)
+                tag_escaped = html_lib.escape(tag)
                 if any(k in tag for k in ["正例", "反例", "签名"]):
-                    sections.append(f"• <b>{tag}</b>: <code>{val_clean}</code>")
+                    sections.append(f"• <b>{tag_escaped}</b>: <code>{val_escaped}</code>")
                 else:
-                    sections.append(f"• <b>{tag}</b>: {val_clean}")
+                    sections.append(f"• <b>{tag_escaped}</b>: {val_escaped}")
             elif is_fs:
                 if any(k in tag for k in ["正例", "反例", "签名"]):
                     sections.append(f"• **{tag}**: `{val_clean}`")
@@ -2103,7 +2106,7 @@ def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
                 else:
                     sections.append(f"• **{tag}**: {val_clean}")
     else:
-        sections.append(raw_content)
+        sections.append(html_lib.escape(raw_content) if is_tg else raw_content)
 
     return header + "\n" + title_line + "\n".join(sections)
 
