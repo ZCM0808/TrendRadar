@@ -139,6 +139,11 @@ def render_ai_analysis_markdown(result: AIAnalysisResult) -> str:
         if refs_text:
             lines.extend([refs_text, ""])
 
+    if result.personal_impact:
+        lines.extend(
+            ["**🎯 对我的微观影响与行动指南**", _format_list_content(result.personal_impact), ""]
+        )
+
     if result.standalone_summaries:
         summaries_text = _format_standalone_summaries(result.standalone_summaries)
         if summaries_text:
@@ -179,6 +184,11 @@ def render_ai_analysis_feishu(result: AIAnalysisResult) -> str:
         refs_text = _format_butterfly_refs_markdown(result.butterfly_references)
         if refs_text:
             lines.extend([refs_text, ""])
+
+    if result.personal_impact:
+        lines.extend(
+            ["**🎯 对我的微观影响与行动指南**", _format_list_content(result.personal_impact), ""]
+        )
 
     if result.standalone_summaries:
         summaries_text = _format_standalone_summaries(result.standalone_summaries)
@@ -227,6 +237,11 @@ def render_ai_analysis_dingtalk(result: AIAnalysisResult) -> str:
         if refs_text:
             lines.extend([refs_text, ""])
 
+    if result.personal_impact:
+        lines.extend(
+            ["#### 🎯 对我的微观影响与行动指南", _format_list_content(result.personal_impact), ""]
+        )
+
     if result.standalone_summaries:
         summaries_text = _format_standalone_summaries(result.standalone_summaries)
         if summaries_text:
@@ -263,6 +278,9 @@ def render_ai_analysis_plain(result: AIAnalysisResult) -> str:
         refs_text = _format_butterfly_refs_plain(result.butterfly_references)
         if refs_text:
             lines.extend([refs_text, ""])
+
+    if result.personal_impact:
+        lines.extend(["[🎯 对我的微观影响与行动指南]", _format_list_content(result.personal_impact), ""])
 
     if result.standalone_summaries:
         summaries_text = _format_standalone_summaries(result.standalone_summaries)
@@ -310,6 +328,9 @@ def render_ai_analysis_telegram(result: AIAnalysisResult) -> str:
                 elif title:
                     ref_lines.append(f"• {title}")
             lines.extend(["\n".join(ref_lines), ""])
+
+    if result.personal_impact:
+        lines.extend(["🎯 <b>对我的微观影响与行动指南</b>", _escape_html(_format_list_content(result.personal_impact)), ""])
 
     if result.standalone_summaries:
         summaries_text = _format_standalone_summaries(result.standalone_summaries)
@@ -414,6 +435,15 @@ def render_ai_analysis_html_rich(result: AIAnalysisResult) -> str:
                     <div class="ai-block">
                         <div class="ai-block-title">研判策略与蝴蝶效应推演</div>
                         <div class="ai-block-content">{content_html}</div>
+                    </div>"""
+
+    if result.personal_impact:
+        personal_content = _format_list_content(result.personal_impact)
+        personal_html = _escape_html(personal_content).replace("\n", "<br>")
+        ai_html += f"""
+                    <div class="ai-block">
+                        <div class="ai-block-title">🎯 对我的微观影响与行动指南</div>
+                        <div class="ai-block-content">{personal_html}</div>
                     </div>"""
 
     if result.standalone_summaries:

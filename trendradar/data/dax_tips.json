@@ -1,0 +1,858 @@
+[
+  {
+    "title": "DAX 函数: CUSTOMDATA (Logical & Info)",
+    "content": "[函数名称]: CUSTOMDATA [所属领域]: Logical & Info [函数签名]: CUSTOMDATA() [返回值类型]: 标量文本 [底层机制与执行逻辑]: 专用于 Power BI Embedded (嵌入式报表):在生成 Embed Token 连接串时动态注入自定义参数(如租户代码),DAX 内原生捕获实现多租户数据隔离。 [官方推荐正例]: 'FactSales'[TenantCode] = CUSTOMDATA() [避坑防错反例]: 非嵌入式常规报表中未传入参数时返回空"
+  },
+  {
+    "title": "DAX 函数: VAR.P (Statistical)",
+    "content": "[函数名称]: VAR.P [所属领域]: Statistical [函数签名]: VAR.P(<column>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 计算总体方差(基于全部总体数据)。 [官方推荐正例]: PopVariance = VAR.P('FactSales'[Amount]) [避坑防错反例]: 与 DAX VAR 变量关键字区分"
+  },
+  {
+    "title": "DAX 函数: ISBLANK (Logical & Info)",
+    "content": "[函数名称]: ISBLANK [所属领域]: Logical & Info [函数签名]: ISBLANK(<value>) [返回值类型]: 布尔值 [底层机制与执行逻辑]: 严格检查值是否为 BLANK()。注意在 DAX 中 `[Val] = 0` 会把 BLANK 也当作 0 求值为真,因此检查纯空值必须使用 ISBLANK()。 [官方推荐正例]: HasNoPhone = ISBLANK('DimCustomer'[Phone]) [避坑防错反例]: IF([Val] = BLANK(), ...) -- 易因类型隐式转换误判"
+  },
+  {
+    "title": "DAX 函数: LINEST (Statistical)",
+    "content": "[函数名称]: LINEST [所属领域]: Statistical [函数签名]: LINEST(<y_columnName>, <x_columnName>) [返回值类型]: 单行表 (含 Slope, Intercept 等) [底层机制与执行逻辑]: 现代 DAX 最小二乘法线性回归:直接在引擎内根据 X/Y 计算回归直线斜率 (Slope)、截距 (Intercept) 与拟合优度 R2。 [官方推荐正例]: SlopeVal = SELECTCOLUMNS(LINEST('FactSales'[Sales], 'FactSales'[MarketingSpend]), [Slope]) [避坑防错反例]: X/Y 数据点为空或数据类型不匹配"
+  },
+  {
+    "title": "DAX 函数: UNICODE (Text)",
+    "content": "[函数名称]: UNICODE [所属领域]: Text [函数签名]: UNICODE(<text>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 返回文本首个字符对应的十进制 Unicode 数字编码。 [官方推荐正例]: CharCode = UNICODE('Dim'[IconCol]) [避坑防错反例]: 空文本返回 BLANK"
+  },
+  {
+    "title": "DAX 函数: NETWORKDAYS (Time Intelligence)",
+    "content": "[函数名称]: NETWORKDAYS [所属领域]: Time Intelligence [函数签名]: NETWORKDAYS(<start_date>, <end_date>[, <weekend>][, <holidays>]) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 现代 DAX 官方原生函数:计算两日期间的完整工作日天数,支持自定义周末模式并自动剔除传入假期表中的节假日。 [官方推荐正例]: WorkingDays = NETWORKDAYS('FactSales'[OrderDate], 'FactSales'[ShipDate], 1, 'DimHolidays'[Date]) [避坑防错反例]: 日期参数顺序颠倒返回负数"
+  },
+  {
+    "title": "DAX 函数: TOCSV (Table Manipulation)",
+    "content": "[函数名称]: TOCSV [所属领域]: Table Manipulation [函数签名]: TOCSV(<table>[, <max_rows>][, <delimiter>]) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 现代 DAX 导出函数:将表表达式的结果直接序列化为逗号或指定分隔符的 CSV 文本字符串,支持限定最大输出行数。 [官方推荐正例]: CsvExport = TOCSV(TOPN(5, 'DimProduct', [Total Sales], DESC)) [避坑防错反例]: 未限行数导致超长字符串截断"
+  },
+  {
+    "title": "实战场景: 消除单线程 CallbackDataID 与 VertiPaq 存储引擎深度调优",
+    "content": "[业务痛点与应用背景]: 报表在 DAX Studio 诊断时,发现查询极其缓慢(超过 10 秒),Server Timings 出现大量红色 `CallbackDataID`,表明 VertiPaq 存储引擎无法向量化并行,被强制回退为公式引擎单线程循环。 [典型根因与反模式]: 在 CALCULATE 的筛选参数中书写了复杂的逻辑计算(如类型转换、字符串截取或非原生比较)。 [优化重构对比]: -- ❌ 慢查询反例 (触发大规模 CallbackDataID): SlowSales = CALCULATE( [Total Sales], FILTER('FactSales', YEAR('FactSales'[OrderDate]) = 2026 && LEFT('FactSales'[StoreCode], 2) = \"SH\") ) -- ✅ 极致优化正例 (纯原生 VertiPaq 扫描,0ms 响应): -- 在 ETL/维度表中预制物理列 'DimStore'[CityPrefix] 与 'DimDate'[Year] FastSales = CALCULATE( [Total Sales], 'DimDate'[Year] = 2026, 'DimStore'[CityPrefix] = \"SH\" )"
+  },
+  {
+    "title": "DAX 函数: CALCULATE (Filter & Context)",
+    "content": "[函数名称]: CALCULATE [所属领域]: Filter & Context [函数签名]: CALCULATE(<expression>[, <filter1> [, <filter2> ...]]) [返回值类型]: 标量值 (Scalar) [底层机制与执行逻辑]: 在修改后的筛选上下文中评估表达式。是 DAX 的灵魂核心函数,会无条件覆盖相同列的外部筛选(除非用 KEEPFILTERS),在行上下文中会自动触发上下文转换 (Context Transition)。 [官方推荐正例]: Total Sales CY = CALCULATE([Total Sales], 'DimDate'[Year] = 2026) [避坑防错反例]: SUMX('FactSales', CALCULATE([Measure])) -- 循环行上下文中逐行触发上下文转换引发几何级性能灾难"
+  },
+  {
+    "title": "DAX 函数: FILTER (Filter & Context)",
+    "content": "[函数名称]: FILTER [所属领域]: Filter & Context [函数签名]: FILTER(<table>, <filter_expression>) [返回值类型]: 表 (Table) [底层机制与执行逻辑]: 迭代函数,逐行评估逻辑表达式并返回满足条件的行集合。严禁将大事实表传入 FILTER,应优先使用 CALCULATE 原生谓词。 [官方推荐正例]: FILTER('DimProduct', [Total Sales] > 1000) [避坑防错反例]: CALCULATE([Total Sales], FILTER('FactSales', 'FactSales'[Amount] > 100)) -- 全表扫描事实表严重拖慢性能"
+  },
+  {
+    "title": "DAX 函数: TOJSON (Table Manipulation)",
+    "content": "[函数名称]: TOJSON [所属领域]: Table Manipulation [函数签名]: TOJSON(<table>[, <max_rows>]) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 现代 DAX 导出函数:将表数据直接序列化为标准的 JSON 结构化字符串,便于供 REST API 或前端组件消费。 [官方推荐正例]: JsonPayload = TOJSON(TOPN(10, 'DimCustomer', [Total Sales], DESC)) [避坑防错反例]: 大表转 JSON 内存打满"
+  },
+  {
+    "title": "DAX 函数: EXACT (Text)",
+    "content": "[函数名称]: EXACT [所属领域]: Text [函数签名]: EXACT(<text1>, <text2>) [返回值类型]: 布尔值 [底层机制与执行逻辑]: DAX 默认全语言大小写不敏感;EXACT 是全语言唯一严格区分大小写 (Case-Sensitive) 的文本全等比对函数。 [官方推荐正例]: IsExactMatch = EXACT('Dim'[Code], \"Admin\") [避坑防错反例]: 用普通 `=` 比较大小写无法区分"
+  },
+  {
+    "title": "DAX 函数: CALENDARAUTO (Time Intelligence)",
+    "content": "[函数名称]: CALENDARAUTO [所属领域]: Time Intelligence [函数签名]: CALENDARAUTO([<fiscal_year_end_month>]) [返回值类型]: 单列日期表 [底层机制与执行逻辑]: 自动扫描模型中除计算列/计算表外的所有日期列,自动取最早与最晚年份,生成从 1月1日到 12月31日的连续无空隙全量日期表。 [官方推荐正例]: DimDate = CALENDARAUTO(6) -- 6月30日财年截止 [避坑防错反例]: 模型中若误混入“员工出生年份 1900”或“远期 2099”会导致生成十万行无用日期表"
+  },
+  {
+    "title": "DAX 函数: UPPER (Text)",
+    "content": "[函数名称]: UPPER [所属领域]: Text [函数签名]: UPPER(<text>) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 将字符串中所有小写英文字母转换为大写形式。 [官方推荐正例]: UpperCode = UPPER('DimProduct'[SKU]) [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: LOWER (Text)",
+    "content": "[函数名称]: LOWER [所属领域]: Text [函数签名]: LOWER(<text>) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 将字符串全部英文字符转换为小写形式。 [官方推荐正例]: LowerEmail = LOWER('DimCustomer'[Email]) [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: FIRSTDATE (Time Intelligence)",
+    "content": "[函数名称]: FIRSTDATE [所属领域]: Time Intelligence [函数签名]: FIRSTDATE(<dates>) [返回值类型]: 单列单行日期表 [底层机制与执行逻辑]: 返回当前筛选上下文指定日期列中的最小(最早)日期。返回类型是单行单列表(不同于 MIN 返回标量)。 [官方推荐正例]: First Active Date = FIRSTDATE('DimDate'[Date]) [避坑防错反例]: 在需要纯标量文本拼接处直接调用导致类型冲突"
+  },
+  {
+    "title": "DAX 函数: MEDIAN (Aggregation)",
+    "content": "[函数名称]: MEDIAN [所属领域]: Aggregation [函数签名]: MEDIAN(<column>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 计算列中数值的中位数(第 50 百分位数)。消除离群极值对平均值的干扰。 [官方推荐正例]: Median Salary = MEDIAN('DimEmployee'[Salary]) [避坑防错反例]: 对非数值列求值报错"
+  },
+  {
+    "title": "DAX 函数: TRUE (Logical & Info)",
+    "content": "[函数名称]: TRUE [所属领域]: Logical & Info [函数签名]: TRUE() [返回值类型]: 布尔值 TRUE [底层机制与执行逻辑]: 返回逻辑真值 TRUE。常作为 SWITCH 守卫模式的第一判断引导参数。 [官方推荐正例]: SWITCH(TRUE(), ...) [避坑防错反例]: 误写为字符串 \"TRUE\""
+  },
+  {
+    "title": "DAX 函数: LEN (Text)",
+    "content": "[函数名称]: LEN [所属领域]: Text [函数签名]: LEN(<text>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 返回字符串的字符长度。 [官方推荐正例]: CodeLength = LEN('DimProduct'[ProductCode]) [避坑防错反例]: 空值长度为 BLANK"
+  },
+  {
+    "title": "DAX 函数: COUNTAX (Aggregation)",
+    "content": "[函数名称]: COUNTAX [所属领域]: Aggregation [函数签名]: COUNTAX(<table>, <expression>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 迭代函数:统计表遍历中表达式结果非空的行数,支持布尔求值结果。 [官方推荐正例]: COUNTAX('DimCustomer', [IsVipCustomer]) [避坑防错反例]: 高基数事实表循环性能损耗"
+  },
+  {
+    "title": "DAX 函数: GEOMEANX (Aggregation)",
+    "content": "[函数名称]: GEOMEANX [所属领域]: Aggregation [函数签名]: GEOMEANX(<table>, <expression>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 迭代函数:遍历表每行计算表达式的几何平均值。 [官方推荐正例]: GEOMEANX('DimFund', 1 + 'DimFund'[AnnualYield]) [避坑防错反例]: 负数表达式报错"
+  },
+  {
+    "title": "DAX 函数: UTCTODAY (Date & Time)",
+    "content": "[函数名称]: UTCTODAY [所属领域]: Date & Time [函数签名]: UTCTODAY() [返回值类型]: 标量日期 (Date) [底层机制与执行逻辑]: 显式返回世界标准时间 (UTC) 的当前日期。 [官方推荐正例]: UtcDate = UTCTODAY() [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: LOG (Math & Trig)",
+    "content": "[函数名称]: LOG [所属领域]: Math & Trig [函数签名]: LOG(<number>[, <base>]) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 返回指定底数的对数(默认以 10 为底)。 [官方推荐正例]: Log2Val = LOG(8, 2) [避坑防错反例]: 底数小于等于 0 报错"
+  },
+  {
+    "title": "DAX 函数: REPT (Text)",
+    "content": "[函数名称]: REPT [所属领域]: Text [函数签名]: REPT(<text>, <num_times>) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 将指定文本重复拼接指定次数。常用于度量值中绘制简易文本条形图(如星级评分 ★★★★★)。 [官方推荐正例]: RatingStars = REPT(\"★\", [StarRating]) [避坑防错反例]: 重复次数为负数报错"
+  },
+  {
+    "title": "DAX 函数: EXP (Math & Trig)",
+    "content": "[函数名称]: EXP [所属领域]: Math & Trig [函数签名]: EXP(<number>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 返回常数 e 的乘幂 (e ^ number)。 [官方推荐正例]: ExpVal = EXP(2) [避坑防错反例]: 过大数字发生数值溢出"
+  },
+  {
+    "title": "DAX 函数: FACT (Math & Trig)",
+    "content": "[函数名称]: FACT [所属领域]: Math & Trig [函数签名]: FACT(<number>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 计算非负整数的阶乘 (n!)。 [官方推荐正例]: Permutations = FACT(5) [避坑防错反例]: 负数报错"
+  },
+  {
+    "title": "DAX 函数: ODD (Math & Trig)",
+    "content": "[函数名称]: ODD [所属领域]: Math & Trig [函数签名]: ODD(<number>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 将数字远离零向上舍入到最接近的奇数整数。 [官方推荐正例]: NearestOdd = ODD(2) -- 返回 3 [避坑防错反例]: 负数远离零"
+  },
+  {
+    "title": "DAX 函数: EVEN (Math & Trig)",
+    "content": "[函数名称]: EVEN [所属领域]: Math & Trig [函数签名]: EVEN(<number>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 将数字远离零向上舍入到最接近的偶数整数。 [官方推荐正例]: NearestEven = EVEN(1.5) -- 返回 2 [避坑防错反例]: 负数远离零舍入"
+  },
+  {
+    "title": "DAX 函数: POWER (Math & Trig)",
+    "content": "[函数名称]: POWER [所属领域]: Math & Trig [函数签名]: POWER(<number>, <power>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 返回数字的乘幂运算结果 (number ^ power)。 [官方推荐正例]: Compounded = POWER(1 + 0.05, 10) [避坑防错反例]: 负数开偶数次方根抛出异常"
+  },
+  {
+    "title": "DAX 函数: BITLSHIFT (Bitwise)",
+    "content": "[函数名称]: BITLSHIFT [所属领域]: Bitwise [函数签名]: BITLSHIFT(<number>, <shift_amount>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 按位左移运算(相当于乘以 2 的 shift_amount 次方)。 [官方推荐正例]: Shifted = BITLSHIFT(1, 3) -- 结果为 8 [避坑防错反例]: 移位量超过 64 位溢出"
+  },
+  {
+    "title": "DAX 函数: BITRSHIFT (Bitwise)",
+    "content": "[函数名称]: BITRSHIFT [所属领域]: Bitwise [函数签名]: BITRSHIFT(<number>, <shift_amount>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 按位右移运算(相当于除以 2 的 shift_amount 次方后向下取整)。 [官方推荐正例]: Shifted = BITRSHIFT(16, 2) -- 结果为 4 [避坑防错反例]: 负数移位行为需测试"
+  },
+  {
+    "title": "DAX 函数: UTCNOW (Date & Time)",
+    "content": "[函数名称]: UTCNOW [所属领域]: Date & Time [函数签名]: UTCNOW() [返回值类型]: 标量时间戳 (DateTime) [底层机制与执行逻辑]: 显式返回世界标准时间 (UTC) 的当前日期与时间,不受本地机器设置影响。 [官方推荐正例]: UtcTimestamp = UTCNOW() [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: ISCROSSFILTERED (Logical & Info)",
+    "content": "[函数名称]: ISCROSSFILTERED [所属领域]: Logical & Info [函数签名]: ISCROSSFILTERED(<tableNameOrColumnName>) [返回值类型]: 布尔值 [底层机制与执行逻辑]: 检查指定列或表是否受到直接筛选或通过模型关系连线扩散过来的间接交叉筛选。 [官方推荐正例]: HasAnyFilter = ISCROSSFILTERED('DimProduct') [避坑防错反例]: 区分直接与间接筛选时混淆"
+  },
+  {
+    "title": "DAX 函数: RIGHT (Text)",
+    "content": "[函数名称]: RIGHT [所属领域]: Text [函数签名]: RIGHT(<text>[, <num_chars>]) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 从字符串右侧提取指定数量的字符。 [官方推荐正例]: Last4Digits = RIGHT('DimCustomer'[Phone], 4) [避坑防错反例]: 越界"
+  },
+  {
+    "title": "DAX 函数: VALUE (Text)",
+    "content": "[函数名称]: VALUE [所属领域]: Text [函数签名]: VALUE(<text>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 将表示数字的文本字符串显式解析转换为标准数值类型 (Decimal / Double)。 [官方推荐正例]: NumericCode = VALUE('Dim'[StringCode]) [避坑防错反例]: 含有非数字字符文本转换时抛出异常"
+  },
+  {
+    "title": "DAX 函数: SQRT (Math & Trig)",
+    "content": "[函数名称]: SQRT [所属领域]: Math & Trig [函数签名]: SQRT(<number>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 返回正数的平方根。 [官方推荐正例]: Std = SQRT([Variance]) [避坑防错反例]: 负数开平方直接报错"
+  },
+  {
+    "title": "DAX 函数: LEFT (Text)",
+    "content": "[函数名称]: LEFT [所属领域]: Text [函数签名]: LEFT(<text>[, <num_chars>]) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 从字符串左侧提取指定数量的字符(默认提取 1 个)。 [官方推荐正例]: YearPrefix = LEFT('DimDate'[DateKey], 4) [避坑防错反例]: 参数越界"
+  },
+  {
+    "title": "DAX 函数: RAND (Math & Trig)",
+    "content": "[函数名称]: RAND [所属领域]: Math & Trig [函数签名]: RAND() [返回值类型]: 标量浮点数 (0-1) [底层机制与执行逻辑]: 返回大于等于 0 且小于 1 的均匀分布随机实数。每次重新求值都会生成新数字。 [官方推荐正例]: RandomScore = RAND() [避坑防错反例]: 在计算列中使用会导致每次模型刷新重新生成随机值"
+  },
+  {
+    "title": "DAX 函数: TIME (Date & Time)",
+    "content": "[函数名称]: TIME [所属领域]: Date & Time [函数签名]: TIME(<hour>, <minute>, <second>) [返回值类型]: 标量时间 (Time) [底层机制与执行逻辑]: 根据时分秒整数构造时间类型数据。 [官方推荐正例]: CutoffTime = TIME(18, 0, 0) [避坑防错反例]: 小时大于 23 自动循环取模"
+  },
+  {
+    "title": "DAX 函数: FLOOR (Math & Trig)",
+    "content": "[函数名称]: FLOOR [所属领域]: Math & Trig [函数签名]: FLOOR(<number>, <significance>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 将数字向下舍入到最接近的 significance 倍数。 [官方推荐正例]: BaseTier = FLOOR('DimCustomer'[Score], 100) [避坑防错反例]: 负数符号不一致报错"
+  },
+  {
+    "title": "DAX 函数: SIGN (Math & Trig)",
+    "content": "[函数名称]: SIGN [所属领域]: Math & Trig [函数签名]: SIGN(<number>) [返回值类型]: 标量整数 (-1, 0, 1) [底层机制与执行逻辑]: 返回数字的正负号:正数返回 1,零返回 0,负数返回 -1。 [官方推荐正例]: Direction = SIGN([SalesGrowth]) [避坑防错反例]: 空值判断"
+  },
+  {
+    "title": "DAX 函数: PMT (Financial)",
+    "content": "[函数名称]: PMT [所属领域]: Financial [函数签名]: PMT(<rate>, <nper>, <pv>[, <fv>][, <type>]) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 根据固定利率与等额分期付款方式,计算贷款每期偿还金额(本息和)。 [官方推荐正例]: MonthlyLoan = PMT(0.05 / 12, 30 * 12, -1000000) [避坑防错反例]: 年利率未除以 12 月化"
+  },
+  {
+    "title": "DAX 函数: MOD (Math & Trig)",
+    "content": "[函数名称]: MOD [所属领域]: Math & Trig [函数签名]: MOD(<number>, <divisor>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 返回两数相除后的余数 (Modulo)。常用于奇偶判断、周期性轮询与整点小时提取。 [官方推荐正例]: IsEvenRow = MOD('Dim'[RowID], 2) = 0 [避坑防错反例]: 除数为 0 报错"
+  },
+  {
+    "title": "DAX 函数: TODAY (Date & Time)",
+    "content": "[函数名称]: TODAY [所属领域]: Date & Time [函数签名]: TODAY() [返回值类型]: 标量日期 (Date) [底层机制与执行逻辑]: 返回当前系统日期(时分秒为 00:00:00)。注意在云端 Power BI 刷新时使用的是 UTC 时区,国内需 +8 小时对齐。 [官方推荐正例]: CurrentDate = TODAY() [避坑防错反例]: 云端与本地时区 8 小时时差未换算"
+  },
+  {
+    "title": "DAX 函数: GEOMEAN (Aggregation)",
+    "content": "[函数名称]: GEOMEAN [所属领域]: Aggregation [函数签名]: GEOMEAN(<column>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 计算列中数据的几何平均值。常用于投资回报率与几何增长率。 [官方推荐正例]: Geo Avg Growth = GEOMEAN('DimGrowth'[GrowthRate]) [避坑防错反例]: 列中若存在负数或零会抛出错误"
+  },
+  {
+    "title": "DAX 函数: ISTEXT (Logical & Info)",
+    "content": "[函数名称]: ISTEXT [所属领域]: Logical & Info [函数签名]: ISTEXT(<value>) [返回值类型]: 布尔值 [底层机制与执行逻辑]: 检查值是否为字符串文本类型。 [官方推荐正例]: IsStr = ISTEXT('Dim'[Col]) [避坑防错反例]: 混淆空值与空字符串"
+  },
+  {
+    "title": "DAX 函数: DATESINPERIOD (Time Intelligence)",
+    "content": "[函数名称]: DATESINPERIOD [所属领域]: Time Intelligence [函数签名]: DATESINPERIOD(<dates>, <start_date>, <number_of_intervals>, <interval>) [返回值类型]: 单列日期表 [底层机制与执行逻辑]: 从 start_date 开始,按正负步长向后或向前拉出指定粒度的日期切片。常配合 MAX('DimDate'[Date]) 构建近7天、近30天滚动平均 (Rolling Average)。 [官方推荐正例]: Rolling30DSales = CALCULATE([Total Sales], DATESINPERIOD('DimDate'[Date], MAX('DimDate'[Date]), -30, DAY)) [避坑防错反例]: 起始日期未取 MAX 导致滑动锚点漂移"
+  },
+  {
+    "title": "DAX 函数: MINX (Aggregation)",
+    "content": "[函数名称]: MINX [所属领域]: Aggregation [函数签名]: MINX(<table>, <expression>) [返回值类型]: 标量值 [底层机制与执行逻辑]: 迭代函数:遍历表并返回每行表达式评估后的最小值。 [官方推荐正例]: Min Profit Margin = MINX('FactSales', 'FactSales'[Margin]) [避坑防错反例]: 循环内套度量值导致逐行转换"
+  },
+  {
+    "title": "DAX 函数: PREVIOUSMONTH (Time Intelligence)",
+    "content": "[函数名称]: PREVIOUSMONTH [所属领域]: Time Intelligence [函数签名]: PREVIOUSMONTH(<dates>) [返回值类型]: 单列日期表 [底层机制与执行逻辑]: 返回当前上下文最早日期所在月份的上一个整月的完整日期集合。 [官方推荐正例]: Sales Prior Month = CALCULATE([Total Sales], PREVIOUSMONTH('DimDate'[Date])) [避坑防错反例]: 部分月中切片仍返回上月整月"
+  },
+  {
+    "title": "DAX 函数: DISTINCTCOUNT (Aggregation)",
+    "content": "[函数名称]: DISTINCTCOUNT [所属领域]: Aggregation [函数签名]: DISTINCTCOUNT(<column>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 计算列中非重复值的数量。当存在外键冲突导致的孤立行时,BLANK 空值会被视作一个有效独立值计入总数。 [官方推荐正例]: Unique Customers = DISTINCTCOUNT('FactSales'[CustomerKey]) [避坑防错反例]: 需严格排除空值时误用导致结果多出 1"
+  },
+  {
+    "title": "DAX 函数: PREVIOUSQUARTER (Time Intelligence)",
+    "content": "[函数名称]: PREVIOUSQUARTER [所属领域]: Time Intelligence [函数签名]: PREVIOUSQUARTER(<dates>) [返回值类型]: 单列日期表 [底层机制与执行逻辑]: 返回上一季度的全部日期集合。 [官方推荐正例]: Sales Prior Quarter = CALCULATE([Total Sales], PREVIOUSQUARTER('DimDate'[Date])) [避坑防错反例]: 与日级别环比混淆"
+  },
+  {
+    "title": "DAX 函数: COUNTBLANK (Aggregation)",
+    "content": "[函数名称]: COUNTBLANK [所属领域]: Aggregation [函数签名]: COUNTBLANK(<column>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 统计指定列中包含空白值 (BLANK) 的单元格总行数。 [官方推荐正例]: Missing Email Count = COUNTBLANK('DimCustomer'[Email]) [避坑防错反例]: 误与空字符串 \"\" 混淆"
+  },
+  {
+    "title": "DAX 函数: PRODUCTX (Aggregation)",
+    "content": "[函数名称]: PRODUCTX [所属领域]: Aggregation [函数签名]: PRODUCTX(<table>, <expression>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 迭代函数:遍历表计算每行表达式并求其连乘积。 [官方推荐正例]: Compounded Return = PRODUCTX('DimPortfolio', 1 + 'DimPortfolio'[ReturnRate]) - 1 [避坑防错反例]: 高频大表迭代开销大"
+  },
+  {
+    "title": "DAX 函数: STARTOFQUARTER (Time Intelligence)",
+    "content": "[函数名称]: STARTOFQUARTER [所属领域]: Time Intelligence [函数签名]: STARTOFQUARTER(<dates>) [返回值类型]: 单列单行日期表 [底层机制与执行逻辑]: 返回当前季度起始第一天的日期。 [官方推荐正例]: Qtr Start = STARTOFQUARTER('DimDate'[Date]) [避坑防错反例]: 表类型与标量混用"
+  },
+  {
+    "title": "DAX 函数: STARTOFYEAR (Time Intelligence)",
+    "content": "[函数名称]: STARTOFYEAR [所属领域]: Time Intelligence [函数签名]: STARTOFYEAR(<dates>[, <year_end_date>]) [返回值类型]: 单列单行日期表 [底层机制与执行逻辑]: 返回当年第一天(或自定义财年第一天)。 [官方推荐正例]: Year Start = STARTOFYEAR('DimDate'[Date]) [避坑防错反例]: 非标准财年漏参"
+  },
+  {
+    "title": "DAX 函数: PRODUCT (Aggregation)",
+    "content": "[函数名称]: PRODUCT [所属领域]: Aggregation [函数签名]: PRODUCT(<column>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 计算列中所有数值的连乘积。常用于复利、通胀系数与复合折现率计算。 [官方推荐正例]: Total Inflation Factor = PRODUCT('DimRate'[InflationRate]) [避坑防错反例]: 列中含有 0 会导致全部乘积归零"
+  },
+  {
+    "title": "DAX 函数: ISFILTERED (Logical & Info)",
+    "content": "[函数名称]: ISFILTERED [所属领域]: Logical & Info [函数签名]: ISFILTERED(<tableNameOrColumnName>) [返回值类型]: 布尔值 [底层机制与执行逻辑]: 检查指定列或表是否直接受到当前筛选器的直接过滤(不包括通过关系连线交叉传递过来的间接筛选)。 [官方推荐正例]: DirectlySelected = ISFILTERED('DimProduct'[Category]) [避坑防错反例]: 在矩阵层级小计判断中误用"
+  },
+  {
+    "title": "DAX 函数: TRIM (Text)",
+    "content": "[函数名称]: TRIM [所属领域]: Text [函数签名]: TRIM(<text>) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 移除文本首尾所有多余空格,并将文本内部连续的多个空格缩减为一个标准空格。 [官方推荐正例]: CleanName = TRIM('DimCustomer'[CustomerName]) [避坑防错反例]: 不能移除不间断空格 (NBSP / CHAR(160))"
+  },
+  {
+    "title": "DAX 函数: ABS (Math & Trig)",
+    "content": "[函数名称]: ABS [所属领域]: Math & Trig [函数签名]: ABS(<number>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 返回数值的绝对值(去符号)。 [官方推荐正例]: VarianceAbs = ABS([Actual] - [Budget]) [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: PI (Math & Trig)",
+    "content": "[函数名称]: PI [所属领域]: Math & Trig [函数签名]: PI() [返回值类型]: 常数 3.14159265358979 [底层机制与执行逻辑]: 返回数学常数圆周率 π 的精确值。 [官方推荐正例]: CircleArea = PI() * POWER([Radius], 2) [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: BITOR (Bitwise)",
+    "content": "[函数名称]: BITOR [所属领域]: Bitwise [函数签名]: BITOR(<number1>, <number2>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 按位或 (Bitwise OR) 运算。用于组合多个标志位掩码。 [官方推荐正例]: CombinedPerm = BITOR('DimUser'[PermA], 'DimUser'[PermB]) [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: QUARTER (Date & Time)",
+    "content": "[函数名称]: QUARTER [所属领域]: Date & Time [函数签名]: QUARTER(<date>) [返回值类型]: 标量整数 (1-4) [底层机制与执行逻辑]: 提取日期对应的公历季度编号 (1 到 4)。 [官方推荐正例]: QtrNo = QUARTER('DimDate'[Date]) [避坑防错反例]: 非标准财年需自定义映射"
+  },
+  {
+    "title": "DAX 函数: CONCATENATE (Text)",
+    "content": "[函数名称]: CONCATENATE [所属领域]: Text [函数签名]: CONCATENATE(<text1>, <text2>) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 拼接两个文本字符串。拼接多个文本推荐使用原生连接符 `&`。 [官方推荐正例]: FullName = 'Dim'[FirstName] & \" \" & 'Dim'[LastName] [避坑防错反例]: 多层嵌套 CONCATENATE(CONCATENATE(a, b), c) 冗长反模式"
+  },
+  {
+    "title": "DAX 函数: PATHLENGTH (Parent-Child)",
+    "content": "[函数名称]: PATHLENGTH [所属领域]: Parent-Child [函数签名]: PATHLENGTH(<path>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 计算 PATH 路径字符串中的总节点数(层级深度)。常用于判断员工在组织树中处于第几层。 [官方推荐正例]: HierarchyDepth = PATHLENGTH('DimEmployee'[EmpPath]) [避坑防错反例]: 路径为空时返回 0"
+  },
+  {
+    "title": "DAX 函数: LOG10 (Math & Trig)",
+    "content": "[函数名称]: LOG10 [所属领域]: Math & Trig [函数签名]: LOG10(<number>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 返回以 10 为底的对数(常用对数)。 [官方推荐正例]: Magnitude = LOG10([Total Revenue]) [避坑防错反例]: 小于等于 0 报错"
+  },
+  {
+    "title": "DAX 函数: NPER (Financial)",
+    "content": "[函数名称]: NPER [所属领域]: Financial [函数签名]: NPER(<rate>, <pmt>, <pv>[, <fv>][, <type>]) [返回值类型]: 标量浮点数 [底层机制与执行逻辑]: 计算基于固定利率及等额分期付款方式下的总投资/还款期数。 [官方推荐正例]: TotalMonths = NPER(0.06 / 12, -1000, 50000) [避坑防错反例]: 符号相反现金流设置"
+  },
+  {
+    "title": "DAX 函数: BITAND (Bitwise)",
+    "content": "[函数名称]: BITAND [所属领域]: Bitwise [函数签名]: BITAND(<number1>, <number2>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 对两个整数执行按位与 (Bitwise AND) 运算。常用于用户位掩码 (Bitmask) 权限解析。 [官方推荐正例]: HasAdminPerm = BITAND('DimUser'[Permissions], 4) = 4 [避坑防错反例]: 传入负数非整数类型报错"
+  },
+  {
+    "title": "DAX 函数: MID (Text)",
+    "content": "[函数名称]: MID [所属领域]: Text [函数签名]: MID(<text>, <start_num>, <num_chars>) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 从指定起始位置 start_num(基于 1 索引)开始提取固定长度的子字符串。 [官方推荐正例]: MonthCode = MID('DimDate'[DateKey], 5, 2) [避坑防错反例]: 索引从 0 开始传入错误"
+  },
+  {
+    "title": "DAX 函数: FIND (Text)",
+    "content": "[函数名称]: FIND [所属领域]: Text [函数签名]: FIND(<find_text>, <within_text>[, [<start_num>][, <NotFoundValue>]]) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 大小写敏感文本查找,不支持通配符。未找到时需提供 NotFoundValue 兜底。 [官方推荐正例]: Pos = FIND(\"Error\", 'Logs'[Text], 1, 0) [避坑防错反例]: 未传兜底值报错"
+  },
+  {
+    "title": "DAX 函数: DATE (Date & Time)",
+    "content": "[函数名称]: DATE [所属领域]: Date & Time [函数签名]: DATE(<year>, <month>, <day>) [返回值类型]: 标量日期 (Date) [底层机制与执行逻辑]: 根据年、月、日整数构造标准日期。若月份超过 12 或天数超出该月最大天数,会自动向后进位计算。 [官方推荐正例]: NewYearDate = DATE(2026, 1, 1) [避坑防错反例]: 月份填 13 自动进位到下一年易引发隐蔽逻辑错误"
+  },
+  {
+    "title": "DAX 函数: FIXED (Text)",
+    "content": "[函数名称]: FIXED [所属领域]: Text [函数签名]: FIXED(<number>[, <decimals>][, <no_commas>]) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 将数字四舍五入到指定小数位数,并格式化为带或不带千分位逗号的文本字符串。 [官方推荐正例]: FixedStr = FIXED([Total Sales], 2, FALSE) [避坑防错反例]: 转换为文本后丢失图表数值聚合属性"
+  },
+  {
+    "title": "DAX 函数: OPENINGBALANCEQUARTER (Time Intelligence)",
+    "content": "[函数名称]: OPENINGBALANCEQUARTER [所属领域]: Time Intelligence [函数签名]: OPENINGBALANCEQUARTER(<expression>, <dates>[, <filter>]) [返回值类型]: 标量值 [底层机制与执行逻辑]: 计算当前季度初第一天的快照期初余额。 [官方推荐正例]: Quarter Opening Bal = OPENINGBALANCEQUARTER([Cash Balance], 'DimDate'[Date]) [避坑防错反例]: 连续日期表缺失导致空白"
+  },
+  {
+    "title": "DAX 函数: COUNTA (Aggregation)",
+    "content": "[函数名称]: COUNTA [所属领域]: Aggregation [函数签名]: COUNTA(<column>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 计算列中非空值的数量,包含布尔值 (TRUE/FALSE)。 [官方推荐正例]: Flag Count = COUNTA('DimCustomer'[IsSubscribed]) [避坑防错反例]: 空值处理混淆"
+  },
+  {
+    "title": "DAX 函数: DISTINCTCOUNTNOBLANK (Aggregation)",
+    "content": "[函数名称]: DISTINCTCOUNTNOBLANK [所属领域]: Aggregation [函数签名]: DISTINCTCOUNTNOBLANK(<column>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 计算列中唯一非重复值的数量,严格忽略并剔除 BLANK 空白值。 [官方推荐正例]: Clean Unique Stores = DISTINCTCOUNTNOBLANK('FactSales'[StoreKey]) [避坑防错反例]: 当需要审计空白孤立行时不能使用此函数"
+  },
+  {
+    "title": "DAX 函数: PREVIOUSYEAR (Time Intelligence)",
+    "content": "[函数名称]: PREVIOUSYEAR [所属领域]: Time Intelligence [函数签名]: PREVIOUSYEAR(<dates>[, <year_end_date>]) [返回值类型]: 单列日期表 [底层机制与执行逻辑]: 返回上一公历年或财年的整整 365/366 天的全部日期。 [官方推荐正例]: Sales Prior Full Year = CALCULATE([Total Sales], PREVIOUSYEAR('DimDate'[Date])) [避坑防错反例]: 日级别同比误用导致数据暴增 365 倍"
+  },
+  {
+    "title": "DAX 函数: ISLOGICAL (Logical & Info)",
+    "content": "[函数名称]: ISLOGICAL [所属领域]: Logical & Info [函数签名]: ISLOGICAL(<value>) [返回值类型]: 布尔值 [底层机制与执行逻辑]: 检查值是否为布尔逻辑类型 (TRUE/FALSE)。 [官方推荐正例]: IsBool = ISLOGICAL('Dim'[Flag]) [避坑防错反例]: 数字 0/1 返回 FALSE"
+  },
+  {
+    "title": "DAX 函数: ENDOFQUARTER (Time Intelligence)",
+    "content": "[函数名称]: ENDOFQUARTER [所属领域]: Time Intelligence [函数签名]: ENDOFQUARTER(<dates>) [返回值类型]: 单列单行日期表 [底层机制与执行逻辑]: 返回当前季度最后一天的日期。 [官方推荐正例]: Qtr End = ENDOFQUARTER('DimDate'[Date]) [避坑防错反例]: 混淆表与标量"
+  },
+  {
+    "title": "DAX 函数: PATHITEMREVERSE (Parent-Child)",
+    "content": "[函数名称]: PATHITEMREVERSE [所属领域]: Parent-Child [函数签名]: PATHITEMREVERSE(<path>, <position>[, <type>]) [返回值类型]: 标量值 [底层机制与执行逻辑]: 从路径末尾(叶子节点向根节点)反向提取第 N 层节点的 ID。position=1 返回当前节点自身,2 返回其直接直属领导。 [官方推荐正例]: DirectManager = PATHITEMREVERSE('DimEmployee'[EmpPath], 2, TEXT) [避坑防错反例]: 根节点没有上级返回空"
+  },
+  {
+    "title": "DAX 函数: MONTH (Date & Time)",
+    "content": "[函数名称]: MONTH [所属领域]: Date & Time [函数签名]: MONTH(<date>) [返回值类型]: 标量整数 (1-12) [底层机制与执行逻辑]: 提取日期的月份整数编号。 [官方推荐正例]: OrderMonth = MONTH('FactSales'[OrderDate]) [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: DAY (Date & Time)",
+    "content": "[函数名称]: DAY [所属领域]: Date & Time [函数签名]: DAY(<date>) [返回值类型]: 标量整数 (1-31) [底层机制与执行逻辑]: 提取日期中的日份整数。 [官方推荐正例]: OrderDay = DAY('FactSales'[OrderDate]) [避坑防错反例]: 无"
+  },
+  {
+    "title": "实战场景: 客户生命周期分析 (流失、新客与群组留存 Cohort)",
+    "content": "[业务痛点与应用背景]: 月度经营报表中,需要明确当前月份的销售额中,哪些属于首单“新客户”,哪些属于持续购买的“老客户”,哪些属于过去 90 天未下单后再次购买的“召回客户”。 [核心函数组合]: CALCULATE + DATESINPERIOD + EXCEPT + VALUES + MIN [生产级 DAX 实现]: -- 客户首次购买日期 Customer First Order Date = CALCULATE( MIN('FactSales'[OrderDate]), REMOVEFILTERS('DimDate') ) -- 新客户销售额 (首购月等于当前月) New Customer Sales = CALCULATE( [Total Sales], FILTER( VALUES('DimCustomer'[CustomerKey]), EOMONTH([Customer First Order Date], 0) = EOMONTH(MAX('DimDate'[Date]), 0) ) ) -- 过去 90 天流失客户数 (90 天前购买过但近 90 天无交易) Churned Customers Count = VAR WindowDays = 90 VAR PriorPeriodCustomers = CALCULATETABLE( VALUES('FactSales'[CustomerKey]), DATESINPERIOD('DimDate'[Date], MIN('DimDate'[Date]) - 1, -WindowDays, DAY) ) VAR CurrentPeriodCustomers = CALCULATETABLE( VALUES('FactSales'[CustomerKey]), DATESINPERIOD('DimDate'[Date], MAX('DimDate'[Date]), -WindowDays, DAY) ) RETURN COUNTROWS(EXCEPT(PriorPeriodCustomers, CurrentPeriodCustomers))"
+  },
+  {
+    "title": "DAX 函数: NATURALINNERJOIN (Table Manipulation)",
+    "content": "[函数名称]: NATURALINNERJOIN [所属领域]: Table Manipulation [函数签名]: NATURALINNERJOIN(<leftTable>, <rightTable>) [返回值类型]: 内连接表 [底层机制与执行逻辑]: 根据两表中具有相同列名且数据类型一致的同名公共列进行原生内连接。要求公共列必须具备相同数据世系或没有外键限制。 [官方推荐正例]: JoinedData = NATURALINNERJOIN(TblA, TblB) [避坑防错反例]: 两表无同名列或同名列世系冲突报错"
+  },
+  {
+    "title": "DAX 函数: ISNUMBER (Logical & Info)",
+    "content": "[函数名称]: ISNUMBER [所属领域]: Logical & Info [函数签名]: ISNUMBER(<value>) [返回值类型]: 布尔值 [底层机制与执行逻辑]: 检查值是否为数值类型。 [官方推荐正例]: IsNumeric = ISNUMBER('Dim'[RawCode]) [避坑防错反例]: 文本型数字返回 FALSE"
+  },
+  {
+    "title": "DAX 函数: HASONEFILTER (Logical & Info)",
+    "content": "[函数名称]: HASONEFILTER [所属领域]: Logical & Info [函数签名]: HASONEFILTER(<columnName>) [返回值类型]: 布尔值 [底层机制与执行逻辑]: 当目标列上直接应用的显式筛选条件数量恰好为 1 时返回 TRUE。 [官方推荐正例]: HasSingleFilter = HASONEFILTER('DimProduct'[Category]) [避坑防错反例]: 混淆直接筛选与结果唯一值"
+  },
+  {
+    "title": "DAX 函数: MROUND (Math & Trig)",
+    "content": "[函数名称]: MROUND [所属领域]: Math & Trig [函数签名]: MROUND(<number>, <multiple>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 将数字按四舍五入舍入到最接近的指定基数倍数。 [官方推荐正例]: NearestFive = MROUND([Total Amount], 5) [避坑防错反例]: 数值与基数符号相反报错"
+  },
+  {
+    "title": "DAX 函数: RATE (Financial)",
+    "content": "[函数名称]: RATE [所属领域]: Financial [函数签名]: RATE(<nper>, <pmt>, <pv>[, <fv>][, <type>][, <guess>]) [返回值类型]: 标量浮点数 [底层机制与执行逻辑]: 按迭代算法计算年金每期的实际折算利率。 [官方推荐正例]: MonthlyRate = RATE(48, -250, 10000) [避坑防错反例]: 算法不收敛时报错"
+  },
+  {
+    "title": "DAX 函数: BITXOR (Bitwise)",
+    "content": "[函数名称]: BITXOR [所属领域]: Bitwise [函数签名]: BITXOR(<number1>, <number2>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 按位异或 (Bitwise XOR) 运算。 [官方推荐正例]: XorVal = BITXOR('Dim'[FlagA], 'Dim'[FlagB]) [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: SUM (Aggregation)",
+    "content": "[函数名称]: SUM [所属领域]: Aggregation [函数签名]: SUM(<column>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 聚合列中所有数值的和。基础聚合函数,内部被 VertiPaq 存储引擎高度向量化并行处理。 [官方推荐正例]: Total Revenue = SUM('FactSales'[Revenue]) [避坑防错反例]: SUM('FactSales'[Price] * 'FactSales'[Qty]) -- 语法错误:SUM 只能接收单一列名,多列运算必须用 SUMX"
+  },
+  {
+    "title": "DAX 函数: ALLCROSSFILTERED (Filter & Context)",
+    "content": "[函数名称]: ALLCROSSFILTERED [所属领域]: Filter & Context [函数签名]: ALLCROSSFILTERED(<table>) [返回值类型]: 筛选调节器 [底层机制与执行逻辑]: 清除指定表上的所有筛选器,包括通过物理连线从其他关联表交叉筛选扩散过来的所有筛选器。 [官方推荐正例]: CALCULATE([Total Sales], ALLCROSSFILTERED('FactSales')) [避坑防错反例]: 不能作为表函数返回行集,只能在 CALCULATE 调节器中使用"
+  },
+  {
+    "title": "DAX 函数: ENDOFYEAR (Time Intelligence)",
+    "content": "[函数名称]: ENDOFYEAR [所属领域]: Time Intelligence [函数签名]: ENDOFYEAR(<dates>[, <year_end_date>]) [返回值类型]: 单列单行日期表 [底层机制与执行逻辑]: 返回当年最后一天(12月31日或财年最后一天)。 [官方推荐正例]: Year End = ENDOFYEAR('DimDate'[Date]) [避坑防错反例]: 漏参"
+  },
+  {
+    "title": "DAX 函数: PATH (Parent-Child)",
+    "content": "[函数名称]: PATH [所属领域]: Parent-Child [函数签名]: PATH(<ID_columnName>, <parent_columnName>) [返回值类型]: 标量文本路径 [底层机制与执行逻辑]: 递归扫描当前行实体及其上级主管 ID,生成管道符 `|` 分隔的从根节点到当前节点的完整路径串(如 101|105|204)。 [官方推荐正例]: EmpPath = PATH('DimEmployee'[EmployeeKey], 'DimEmployee'[ManagerKey]) [避坑防错反例]: 数据存在循环依赖(A 是 B 上级,B 是 A 上级)导致引擎报错"
+  },
+  {
+    "title": "DAX 函数: YEAR (Date & Time)",
+    "content": "[函数名称]: YEAR [所属领域]: Date & Time [函数签名]: YEAR(<date>) [返回值类型]: 标量整数 (1900-9999) [底层机制与执行逻辑]: 提取日期的年份四位整数。 [官方推荐正例]: OrderYear = YEAR('FactSales'[OrderDate]) [避坑防错反例]: 空日期返回空"
+  },
+  {
+    "title": "实战场景: 虚拟维度过滤与无物理关系多模型穿透联动",
+    "content": "[业务痛点与应用背景]: 企业从外部数仓导入了标准分级表或临时标签表,不想破坏现有 PBI 黄金语义模型的物理关系连线,需要以虚拟维度方式实时过滤核心事实表。 [核心函数组合]: CALCULATE + TREATAS + VALUES [生产级 DAX 实现]: -- 外部虚拟表 'ExternalCategoryFilter' [ExtCategoryCode] Sales Filtered by Virtual Category = VAR SelectedExtCategories = VALUES('ExternalCategoryFilter'[ExtCategoryCode]) RETURN CALCULATE( [Total Sales], TREATAS(SelectedExtCategories, 'DimProduct'[CategoryCode]) ) [性能与架构优势]: 不增加模型物理拓扑复杂度,完全避免了星型模型退化为复杂网状拓扑的问题。"
+  },
+  {
+    "title": "DAX 函数: ISERROR (Logical & Info)",
+    "content": "[函数名称]: ISERROR [所属领域]: Logical & Info [函数签名]: ISERROR(<value>) [返回值类型]: 布尔值 [底层机制与执行逻辑]: 检查表达式求值是否引发系统错误。会强行打断 VertiPaq 存储引擎优化,慎用。 [官方推荐正例]: HasErr = ISERROR(1 / 'Table'[Col]) [避坑防错反例]: 在事实表计算列大面积调用拖垮模型刷新"
+  },
+  {
+    "title": "DAX 函数: LN (Math & Trig)",
+    "content": "[函数名称]: LN [所属领域]: Math & Trig [函数签名]: LN(<number>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 返回正数的自然对数(以 e 为底)。 [官方推荐正例]: LogRet = LN('Fact'[PriceToday] / 'Fact'[PriceYesterday]) [避坑防错反例]: 参数小于等于 0 报错"
+  },
+  {
+    "title": "DAX 函数: PV (Financial)",
+    "content": "[函数名称]: PV [所属领域]: Financial [函数签名]: PV(<rate>, <nper>, <pmt>[, <fv>][, <type>]) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 计算投资现值:未来一系列等额分期支付在当下的等价现值总额。 [官方推荐正例]: PresentValue = PV(0.08 / 12, 120, -500) [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: FV (Financial)",
+    "content": "[函数名称]: FV [所属领域]: Financial [函数签名]: FV(<rate>, <nper>, <pmt>[, <pv>][, <type>]) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 计算投资终值:根据固定利率和定期等额付款,计算资产在期末达到的未来价值总额。 [官方推荐正例]: FutureVal = FV(0.07 / 12, 240, -200) [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: COUNTROWS (Aggregation)",
+    "content": "[函数名称]: COUNTROWS [所属领域]: Aggregation [函数签名]: COUNTROWS([<table>]) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 统计表中的行数。VertiPaq 存储引擎可直接从列段元数据 (Metadata) 中读取常数行数(0ms 响应)。统计表行数的唯一标准。 [官方推荐正例]: Total Rows = COUNTROWS('FactSales') [避坑防错反例]: COUNT('FactSales'[ID]) -- 慢速全列扫描反模式"
+  },
+  {
+    "title": "DAX 函数: RELATED (Filter & Context)",
+    "content": "[函数名称]: RELATED [所属领域]: Filter & Context [函数签名]: RELATED(<columnName>) [返回值类型]: 标量值 (Scalar) [底层机制与执行逻辑]: 必须在行上下文中运行。从事实表(多端)顺着物理关系向上抓取维度表(一端)对应的单列标量值。 [官方推荐正例]: FactSales[CategoryName] = RELATED('DimProduct'[CategoryName]) [避坑防错反例]: 在没有物理连线的表之间调用 RELATED 会直接报模型无关联错误"
+  },
+  {
+    "title": "DAX 函数: MIN (Aggregation)",
+    "content": "[函数名称]: MIN [所属领域]: Aggregation [函数签名]: MIN(<column1>[, <column2>]) [返回值类型]: 标量值 [底层机制与执行逻辑]: 返回列中的最小值;当传入两个标量参数时返回二者中的较小标量值。支持数值、文本与日期类型。 [官方推荐正例]: Min Order Date = MIN('FactSales'[OrderDate]) [避坑防错反例]: MIN('FactSales'[A] * 'FactSales'[B]) -- 语法错误,表达式请用 MINX"
+  },
+  {
+    "title": "DAX 函数: DATEADD (Time Intelligence)",
+    "content": "[函数名称]: DATEADD [所属领域]: Time Intelligence [函数签名]: DATEADD(<dates>, <number_of_intervals>, <interval>) [返回值类型]: 单列日期表 [底层机制与执行逻辑]: 按指定正负间隔与粒度 (DAY, MONTH, QUARTER, YEAR) 平移当前上下文中的离散日期集合。比 SAMEPERIODLASTYEAR 更灵活通用。 [官方推荐正例]: Sales Prior Month = CALCULATE([Total Sales], DATEADD('DimDate'[Date], -1, MONTH)) [避坑防错反例]: 第三参数传错导致粒度失控"
+  },
+  {
+    "title": "DAX 函数: SUBSTITUTE (Text)",
+    "content": "[函数名称]: SUBSTITUTE [所属领域]: Text [函数签名]: SUBSTITUTE(<text>, <old_text>, <new_text>[, <instance_num>]) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 大小写敏感替换:将文本中的 old_text 替换为 new_text,支持指定替换第几次出现的实例。 [官方推荐正例]: Sanitized = SUBSTITUTE('Dim'[Phone], \"-\", \"\") [避坑防错反例]: 大小写不匹配未替换"
+  },
+  {
+    "title": "DAX 函数: INT (Math & Trig)",
+    "content": "[函数名称]: INT [所属领域]: Math & Trig [函数签名]: INT(<number>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 将数字向下舍入到最接近的较小整数。注意负数行为:INT(-1.2) = -2,而 TRUNC(-1.2) = -1。 [官方推荐正例]: Days = INT('Fact'[DaysFraction]) [避坑防错反例]: 负数向下取整产生偏差"
+  },
+  {
+    "title": "DAX 函数: IPMT (Financial)",
+    "content": "[函数名称]: IPMT [所属领域]: Financial [函数签名]: IPMT(<rate>, <per>, <nper>, <pv>[, <fv>][, <type>]) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 计算贷款在指定还款期 per 中支付的利息部分。 [官方推荐正例]: InterestPeriod1 = IPMT(0.05 / 12, 1, 360, -1000000) [避坑防错反例]: 期数越界"
+  },
+  {
+    "title": "DAX 函数: SEARCH (Text)",
+    "content": "[函数名称]: SEARCH [所属领域]: Text [函数签名]: SEARCH(<find_text>, <within_text>[, [<start_num>][, <NotFoundValue>]]) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 大小写不敏感文本查找,支持通配符 `?` (单字符) 与 `*` (多字符)。未找到且未提供 NotFoundValue 时会抛出错误。 [官方推荐正例]: HasWarning = SEARCH(\"*Warn*\", 'Logs'[Text], 1, 0) > 0 [避坑防错反例]: 未提供第四参数且未找到时导致整列查询中断报错"
+  },
+  {
+    "title": "DAX 函数: CEILING (Math & Trig)",
+    "content": "[函数名称]: CEILING [所属领域]: Math & Trig [函数签名]: CEILING(<number>, <significance>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 将数字向上舍入到最接近的 significance 指定倍数(如 0.05 或 10 的倍数)。 [官方推荐正例]: PackCount = CEILING('Fact'[Units], 12) [避坑防错反例]: 倍数为 0 报错"
+  },
+  {
+    "title": "DAX 函数: PPMT (Financial)",
+    "content": "[函数名称]: PPMT [所属领域]: Financial [函数签名]: PPMT(<rate>, <per>, <nper>, <pv>[, <fv>][, <type>]) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 计算贷款在指定还款期 per 中偿还的本金金额部分。 [官方推荐正例]: PrincipalPeriod1 = PPMT(0.05 / 12, 1, 360, -1000000) [避坑防错反例]: 期数 per 超出 nper 报错"
+  },
+  {
+    "title": "DAX 函数: FORMAT (Text)",
+    "content": "[函数名称]: FORMAT [所属领域]: Text [函数签名]: FORMAT(<value>, <format_string>[, <locale_name>]) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 将数值/日期格式化为文本。警告:返回类型为 String,导致度量值彻底失去在折线图/柱状图 Y 轴绘图的能力!数值格式调整应优先使用“度量值动态格式字符串”。 [官方推荐正例]: FormattedRev = FORMAT([Total Sales], \"$#,##0.00;($#,##0.00);\"\"-\"\"\") [避坑防错反例]: 主度量值直接套用 FORMAT 导致图表 Y 轴无法正常按数值展示"
+  },
+  {
+    "title": "DAX 函数: STARTOFMONTH (Time Intelligence)",
+    "content": "[函数名称]: STARTOFMONTH [所属领域]: Time Intelligence [函数签名]: STARTOFMONTH(<dates>) [返回值类型]: 单列单行日期表 [底层机制与执行逻辑]: 返回当前上下文指定列中该月份的第一天日期。 [官方推荐正例]: Month Start = STARTOFMONTH('DimDate'[Date]) [避坑防错反例]: 标量场景未包裹 SCALAR"
+  },
+  {
+    "title": "DAX 函数: HASONEVALUE (Logical & Info)",
+    "content": "[函数名称]: HASONEVALUE [所属领域]: Logical & Info [函数签名]: HASONEVALUE(<columnName>) [返回值类型]: 布尔值 [底层机制与执行逻辑]: 当且仅当目标列在当前筛选上下文中有且仅有一个唯一可见非重复值时返回 TRUE。总计行因包含所有值返回 FALSE。 [官方推荐正例]: IsSingleProduct = HASONEVALUE('DimProduct'[ProductName]) [避坑防错反例]: 单选判断未防御多选切片"
+  },
+  {
+    "title": "DAX 函数: LASTDATE (Time Intelligence)",
+    "content": "[函数名称]: LASTDATE [所属领域]: Time Intelligence [函数签名]: LASTDATE(<dates>) [返回值类型]: 单列单行日期表 [底层机制与执行逻辑]: 返回当前筛选上下文中日期列的最大(最新)日期。返回单行单列表。 [官方推荐正例]: Last Active Date = LASTDATE('DimDate'[Date]) [避坑防错反例]: 混淆标量 MAX"
+  },
+  {
+    "title": "DAX 函数: ROUND (Math & Trig)",
+    "content": "[函数名称]: ROUND [所属领域]: Math & Trig [函数签名]: ROUND(<number>, <num_digits>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 按四舍五入规则保留指定位数的小数。num_digits=0 舍入到整数,负数则舍入到十位、百位。 [官方推荐正例]: RoundedSales = ROUND([Total Sales], 2) [避坑防错反例]: 负数小数位混淆"
+  },
+  {
+    "title": "DAX 函数: ROUNDDOWN (Math & Trig)",
+    "content": "[函数名称]: ROUNDDOWN [所属领域]: Math & Trig [函数签名]: ROUNDDOWN(<number>, <num_digits>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 始终向下(朝向零方向)舍去指定小数位。 [官方推荐正例]: FloorCost = ROUNDDOWN('Fact'[Cost], 0) [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: SECOND (Date & Time)",
+    "content": "[函数名称]: SECOND [所属领域]: Date & Time [函数签名]: SECOND(<datetime>) [返回值类型]: 标量整数 (0-59) [底层机制与执行逻辑]: 提取时间戳中的秒数部分。 [官方推荐正例]: OrderSec = SECOND('FactSales'[OrderDateTime]) [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: MINUTE (Date & Time)",
+    "content": "[函数名称]: MINUTE [所属领域]: Date & Time [函数签名]: MINUTE(<datetime>) [返回值类型]: 标量整数 (0-59) [底层机制与执行逻辑]: 提取时间中的分钟部分整数。 [官方推荐正例]: OrderMin = MINUTE('FactSales'[OrderDateTime]) [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: VALUES (Table Manipulation)",
+    "content": "[函数名称]: VALUES [所属领域]: Table Manipulation [函数签名]: VALUES(<tableNameOrColumnName>) [返回值类型]: 单列表或单表 [底层机制与执行逻辑]: 返回当前筛选上下文中不重复值的单列表。核心特性:当存在外键孤立导致参照完整性冲突时,VALUES 会包含引擎补偿生成的空白行 (Blank Row)。 [官方推荐正例]: SelectedStores = VALUES('DimStore'[StoreKey]) [避坑防错反例]: 需严格排除外键孤立空行时未加防御"
+  },
+  {
+    "title": "实战场景: 半累加指标设计 (库存盘点、银行余额与最后有效值)",
+    "content": "[业务痛点与应用背景]: 库存、现金余额、员工在职人数是典型的“半累加指标”:在品类、部门维度上可以相加,但在时间维度上绝对不能相加(3月31日库存不能与4月1日库存直接相加,必须取期末最新快照)。 [核心函数组合]: CALCULATE + LASTNONBLANKVALUE / LASTDATE [生产级 DAX 实现]: Closing Inventory Stock = CALCULATE( SUM('FactInventorySnapshot'[UnitsOnHand]), LASTNONBLANK('DimDate'[Date], CALCULATE(COUNTROWS('FactInventorySnapshot'))) ) -- 现代更优语法 (零中间开销): Closing Inventory Modern = LASTNONBLANKVALUE('DimDate'[Date], SUM('FactInventorySnapshot'[UnitsOnHand]))"
+  },
+  {
+    "title": "DAX 函数: USERNAME (Logical & Info)",
+    "content": "[函数名称]: USERNAME [所属领域]: Logical & Info [函数签名]: USERNAME() [返回值类型]: 标量文本 [底层机制与执行逻辑]: 本地开发返回域账号 (DOMAIN\\User),但发布到云端时常返回不规则系统 GUID。动态 RLS 坚决禁用,必须用 USERPRINCIPALNAME。 [官方推荐正例]: LocalDevUser = USERNAME() [避坑防错反例]: 在云端生产环境用于安全权限映射"
+  },
+  {
+    "title": "DAX 函数: GCD (Math & Trig)",
+    "content": "[函数名称]: GCD [所属领域]: Math & Trig [函数签名]: GCD(<number1>, <number2>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 计算两个整数的最大公约数 (Greatest Common Divisor)。 [官方推荐正例]: CommonDivisor = GCD(24, 36) [避坑防错反例]: 参数包含负数报错"
+  },
+  {
+    "title": "DAX 函数: LCM (Math & Trig)",
+    "content": "[函数名称]: LCM [所属领域]: Math & Trig [函数签名]: LCM(<number1>, <number2>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 计算两整数的最小公倍数 (Least Common Multiple)。 [官方推荐正例]: CommonMultiple = LCM(12, 18) [避坑防错反例]: 负数报错"
+  },
+  {
+    "title": "DAX 函数: RELATEDTABLE (Filter & Context)",
+    "content": "[函数名称]: RELATEDTABLE [所属领域]: Filter & Context [函数签名]: RELATEDTABLE(<tableName>) [返回值类型]: 表 (Table) [底层机制与执行逻辑]: 必须在行上下文中运行。从维度表(一端)顺着物理关系向下抓取事实表(多端)对应的相关行子表,自带隐式上下文转换。 [官方推荐正例]: DimCustomer[OrdersCount] = COUNTROWS(RELATEDTABLE('FactSales')) [避坑防错反例]: RELATEDTABLE('FactSales') 在无行上下文的度量值中调用会拉取整表无过滤"
+  },
+  {
+    "title": "DAX 函数: MAX (Aggregation)",
+    "content": "[函数名称]: MAX [所属领域]: Aggregation [函数签名]: MAX(<column1>[, <column2>]) [返回值类型]: 标量值 [底层机制与执行逻辑]: 返回列中的最大值;或返回两个标量中的较大值。常用于捕获当前筛选上下文中的最新日期。 [官方推荐正例]: Last Date = MAX('DimDate'[Date]) [避坑防错反例]: MAX('FactSales'[Col1] + 1) -- 语法错误,表达式必须用 MAXX"
+  },
+  {
+    "title": "DAX 函数: TOTALYTD (Time Intelligence)",
+    "content": "[函数名称]: TOTALYTD [所属领域]: Time Intelligence [函数签名]: TOTALYTD(<expression>, <dates>[, <filter>][, <year_end_date>]) [返回值类型]: 标量值 [底层机制与执行逻辑]: 计算年初至今累计 (Year-To-Date)。包裹了 CALCULATE 和 DATESYTD 的官方语法糖,支持非公历财年截止日(如 \"06/30\")。 [官方推荐正例]: Sales YTD = TOTALYTD([Total Sales], 'DimDate'[Date], \"06/30\") [避坑防错反例]: 未标记专用日期表导致累计失真"
+  },
+  {
+    "title": "DAX 函数: PREVIOUSDAY (Time Intelligence)",
+    "content": "[函数名称]: PREVIOUSDAY [所属领域]: Time Intelligence [函数签名]: PREVIOUSDAY(<dates>) [返回值类型]: 单列日期表 [底层机制与执行逻辑]: 返回当前筛选上下文最早日期前一天的单日日期集。 [官方推荐正例]: Sales Yesterday = CALCULATE([Total Sales], PREVIOUSDAY('DimDate'[Date])) [避坑防错反例]: 多月范围调用只取首日前一日"
+  },
+  {
+    "title": "DAX 函数: ENDOFMONTH (Time Intelligence)",
+    "content": "[函数名称]: ENDOFMONTH [所属领域]: Time Intelligence [函数签名]: ENDOFMONTH(<dates>) [返回值类型]: 单列单行日期表 [底层机制与执行逻辑]: 返回当前月份的最后一天日期(包含闰年 2月29日识别)。 [官方推荐正例]: Month End = ENDOFMONTH('DimDate'[Date]) [避坑防错反例]: 与 EOMONTH 标量函数混淆(ENDOFMONTH 返回单列表)"
+  },
+  {
+    "title": "DAX 函数: EDATE (Time Intelligence)",
+    "content": "[函数名称]: EDATE [所属领域]: Time Intelligence [函数签名]: EDATE(<start_date>, <months>) [返回值类型]: 标量日期 (Date) [底层机制与执行逻辑]: 返回向后或向前偏移指定整月数后的同一日日期。若目标月天数不足(如3月31日减1个月),自动取该月最后一天(2月28日)。 [官方推荐正例]: ContractRenewalDate = EDATE('FactContracts'[StartDate], 12) [避坑防错反例]: 混淆日期与月份参数"
+  },
+  {
+    "title": "DAX 函数: WEEKNUM (Date & Time)",
+    "content": "[函数名称]: WEEKNUM [所属领域]: Date & Time [函数签名]: WEEKNUM(<date>[, <return_type>]) [返回值类型]: 标量整数 (1-54) [底层机制与执行逻辑]: 返回该日期在当年所处的周编号(默认星期日为第一天)。 [官方推荐正例]: WeekNo = WEEKNUM('DimDate'[Date], 2) [避坑防错反例]: 第一周未满 7 天时的跨年归属"
+  },
+  {
+    "title": "DAX 函数: UNION (Table Manipulation)",
+    "content": "[函数名称]: UNION [所属领域]: Table Manipulation [函数签名]: UNION(<table1>, <table2>[, <table3> ...]) [返回值类型]: 垂直拼接表 [底层机制与执行逻辑]: 垂直拼接多张表。列数必须完全一致,列数据类型必须兼容,保留重复行(不对重复行去重),列名继承自第一个表。 [官方推荐正例]: AllSales = UNION('FactOnlineSales', 'FactStoreSales') [避坑防错反例]: 两表列数不匹配或数据类型冲突抛出语法异常"
+  },
+  {
+    "title": "实战场景: 零售与快消行业 4-4-5 / 4-5-4 财年时间智能替代方案",
+    "content": "[业务痛点与应用背景]: 零售、百货与快消企业通常采用 4-4-5 周制日历(每季度 13 周,由 4 周、4 周、5 周组成),每年严格 52 周 (364 天),导致公历标准函数 SAMEPERIODLASTYEAR 计算出现“星期几错位”(例如把周六与周一做对比),失去可比性。 [核心函数组合]: CALCULATE + FILTER + ALL + 专用周序号对齐 [生产级 DAX 实现]: -- 日期表预制字段: [FiscalYear], [FiscalWeekNumber], [FiscalDayOfWeek] Sales 445 Prior Year Week = VAR CurrentFY = SELECTEDVALUE('DimDate'[FiscalYear]) VAR CurrentWeek = SELECTEDVALUE('DimDate'[FiscalWeekNumber]) VAR PriorFY = CurrentFY - 1 RETURN CALCULATE( [Total Sales], ALL('DimDate'), 'DimDate'[FiscalYear] = PriorFY, 'DimDate'[FiscalWeekNumber] = CurrentWeek ) Sales 445 YOY % = DIVIDE([Total Sales] - [Sales 445 Prior Year Week], [Sales 445 Prior Year Week]) [避坑铁律]: 绝对不要在此类模型中调用微软内置公历函数(如 DATEADD/DATESYTD),所有同比必须基于 [FiscalWeekNumber] 或 [PeriodSeqID] 整数连续序号整期偏移。"
+  },
+  {
+    "title": "DAX 函数: NATURALLEFTOUTERJOIN (Table Manipulation)",
+    "content": "[函数名称]: NATURALLEFTOUTERJOIN [所属领域]: Table Manipulation [函数签名]: NATURALLEFTOUTERJOIN(<leftTable>, <rightTable>) [返回值类型]: 左外连接表 [底层机制与执行逻辑]: 左外连接:保留 leftTable 全部行,右表未匹配行补 BLANK。要求同名列连接。 [官方推荐正例]: FullCustomerSales = NATURALLEFTOUTERJOIN('DimCustomer', SummaryTable) [避坑防错反例]: 列名不一致导致全笛卡尔积或报错"
+  },
+  {
+    "title": "DAX 函数: COUNT (Aggregation)",
+    "content": "[函数名称]: COUNT [所属领域]: Aggregation [函数签名]: COUNT(<column>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 统计列中包含非空值(数值、日期、字符串)的行数。若仅需统计物理表行数,官方金牌铁律优先使用 COUNTROWS(Table)。 [官方推荐正例]: Valid Phone Count = COUNT('DimCustomer'[Phone]) [避坑防错反例]: COUNT('FactSales'[SalesID]) -- 浪费扫描开销,统计表行数应使用 COUNTROWS"
+  },
+  {
+    "title": "DAX 函数: DATESQTD (Time Intelligence)",
+    "content": "[函数名称]: DATESQTD [所属领域]: Time Intelligence [函数签名]: DATESQTD(<dates>) [返回值类型]: 单列日期表 [底层机制与执行逻辑]: 返回当前季度初至当前上下文最大日期的日期子集。 [官方推荐正例]: Sales QTD = CALCULATE([Total Sales], DATESQTD('DimDate'[Date])) [避坑防错反例]: 跨季度切片边界错位"
+  },
+  {
+    "title": "DAX 函数: EOMONTH (Time Intelligence)",
+    "content": "[函数名称]: EOMONTH [所属领域]: Time Intelligence [函数签名]: EOMONTH(<start_date>, <months>) [返回值类型]: 标量日期 (Date) [底层机制与执行逻辑]: 返回 start_date 偏移指定月数后的该月最后一天的标量日期。常用于财务结账日、到期日对齐。 [官方推荐正例]: MonthEndClose = EOMONTH(TODAY(), 0) -- 本月最后一天 [避坑防错反例]: 与 ENDOFMONTH(表函数)混用"
+  },
+  {
+    "title": "DAX 函数: ISOWEEKNUM (Date & Time)",
+    "content": "[函数名称]: ISOWEEKNUM [所属领域]: Date & Time [函数签名]: ISOWEEKNUM(<date>) [返回值类型]: 标量整数 (1-53) [底层机制与执行逻辑]: 严格遵循 ISO 8601 标准计算周数:每年包含 1月4日的那一周为第 1 周,周一为每周起始日。 [官方推荐正例]: IsoWeek = ISOWEEKNUM('DimDate'[Date]) [避坑防错反例]: 年底几天可能归属下一年第 1 周"
+  },
+  {
+    "title": "实战场景: 复杂组织架构树多级审批动态行级安全 (Dynamic Hierarchy RLS)",
+    "content": "[业务痛点与应用背景]: 企业 HR 与销售模型中,总监能看其下属所有大区经理、城市经理、一线代表的数据;跨部门平级隔离。组织汇报线随时调整,不能硬编码角色。 [核心函数组合]: PATH + PATHCONTAINS + LOOKUPVALUE + USERPRINCIPALNAME [生产级 DAX 实现]: -- 1. 员工维度表中添加全路径计算列: 'DimEmployee'[OrgPath] = PATH('DimEmployee'[EmployeeID], 'DimEmployee'[ManagerID]) -- 2. 在角色安全规则 (RLS Filter) 中配置表达式: VAR CurrentUserEmail = USERPRINCIPALNAME() VAR CurrentEmpID = LOOKUPVALUE('DimEmployee'[EmployeeID], 'DimEmployee'[Email], CurrentUserEmail) RETURN PATHCONTAINS('DimEmployee'[OrgPath], CurrentEmpID) [架构收益]: 事实表与员工表保持 1:N 单向关系,无论组织层级深达 10 层还是员工换岗,云端自动基于 OrgPath 级联继承,零运维成本。"
+  },
+  {
+    "title": "DAX 函数: ROW (Table Manipulation)",
+    "content": "[函数名称]: ROW [所属领域]: Table Manipulation [函数签名]: ROW(<name>, <expression>[, <name>, <expression> ...]) [返回值类型]: 单行表 [底层机制与执行逻辑]: 将一个或多个标量值包装为包含指定列名的单行物理表。常配合 EVALUATE 调试返回标量度量值。 [官方推荐正例]: EVALUATE ROW(\"Total Sales\", [Total Sales], \"Total Margin\", [Total Margin]) [避坑防错反例]: 在需要标量数字处返回表引发类型冲突"
+  },
+  {
+    "title": "DAX 函数: REPLACE (Text)",
+    "content": "[函数名称]: REPLACE [所属领域]: Text [函数签名]: REPLACE(<old_text>, <start_num>, <num_chars>, <new_text>) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 根据起始位置和字符长度,用 new_text 替换 old_text 中的特定子字符串。 [官方推荐正例]: MaskedPhone = REPLACE('Dim'[Phone], 4, 4, \"****\") [避坑防错反例]: 起始位置越界"
+  },
+  {
+    "title": "DAX 函数: LINESTX (Statistical)",
+    "content": "[函数名称]: LINESTX [所属领域]: Statistical [函数签名]: LINESTX(<table>, <y_expression>, <x_expression>) [返回值类型]: 单行表 [底层机制与执行逻辑]: 迭代函数:遍历表评估 X/Y 表达式并执行最小二乘法线性回归拟合,支持复杂计算列拟合预测。 [官方推荐正例]: Trend = LINESTX('FactSales', [Total Sales], 'DimDate'[DayIndex]) [避坑防错反例]: 所有 X 值完全相同时因垂直直线无斜率报错"
+  },
+  {
+    "title": "DAX 函数: UNICHAR (Text)",
+    "content": "[函数名称]: UNICHAR [所属领域]: Text [函数签名]: UNICHAR(<number>) [返回值类型]: 单个字符文本 [底层机制与执行逻辑]: 返回 Unicode 编码对应的字符。常用于在度量值中动态生成向上/向下 KPI 箭头 (▲ 9650 / ▼ 9660) 或圆形指示灯。 [官方推荐正例]: KpiIcon = IF([Growth] >= 0, UNICHAR(9650) & \" \", UNICHAR(9660) & \" \") & FORMAT([Growth], \"0.0%\") [避坑防错反例]: 编码超出 Unicode 范围报错"
+  },
+  {
+    "title": "DAX 函数: IFERROR (Logical & Info)",
+    "content": "[函数名称]: IFERROR [所属领域]: Logical & Info [函数签名]: IFERROR(<value>, <value_if_error>) [返回值类型]: 任意标量 [底层机制与执行逻辑]: 捕获表达式计算过程中抛出的运行时除零或类型错误并返回备选值。警告:会阻止存储引擎向量化计算,官方推荐用 DIVIDE 替代 IFERROR 除零处理。 [官方推荐正例]: SafeVal = IFERROR(VALUE('Dim'[TextCol]), 0) [避坑防错反例]: 用 IFERROR([A]/[B], 0) 代替 DIVIDE 导致引擎严重变慢"
+  },
+  {
+    "title": "DAX 函数: TOTALMTD (Time Intelligence)",
+    "content": "[函数名称]: TOTALMTD [所属领域]: Time Intelligence [函数签名]: TOTALMTD(<expression>, <dates>[, <filter>]) [返回值类型]: 标量值 [底层机制与执行逻辑]: 计算月度至今累计 (Month-To-Date)。在每月1号自动归零重新开始累加。 [官方推荐正例]: Sales MTD = TOTALMTD([Total Sales], 'DimDate'[Date]) [避坑防错反例]: 离散事实表列调用失效"
+  },
+  {
+    "title": "DAX 函数: MAXX (Aggregation)",
+    "content": "[函数名称]: MAXX [所属领域]: Aggregation [函数签名]: MAXX(<table>, <expression>) [返回值类型]: 标量值 [底层机制与执行逻辑]: 迭代函数:遍历表计算并返回最大表达式值。 [官方推荐正例]: Max Daily Sales = MAXX(VALUES('DimDate'[Date]), [Total Sales]) [避坑防错反例]: 在未去重的长表上无端迭代"
+  },
+  {
+    "title": "DAX 函数: RANKX (Window Functions)",
+    "content": "[函数名称]: RANKX [所属领域]: Window Functions [函数签名]: RANKX(<table>, <expression>[, <value>][, <order>][, <ties>]) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 经典排名函数。ties 参数支持 Skip (跳跃 1,2,2,4) 与 Dense (密集 1,2,2,3)。暗坑:必须配合 HASONEVALUE 防范总计行算错为 1。 [官方推荐正例]: Product Rank = IF(HASONEVALUE('DimProduct'[ProductName]), RANKX(ALL('DimProduct'[ProductName]), [Total Sales], , DESC, Dense)) [避坑防错反例]: 未加 HASONEVALUE 导致总计行强制显示为 1 破坏视觉美观"
+  },
+  {
+    "title": "DAX 函数: TOPN (Window Functions)",
+    "content": "[函数名称]: TOPN [所属领域]: Window Functions [函数签名]: TOPN(<n_value>, <table>[, <orderBy_expression>[, <order>]]...) [返回值类型]: 表 (Table) [底层机制与执行逻辑]: 根据排序返回前 N 行数据表。底层使用高效堆排序算法,常用于计算 Top 10 客户贡献金额或高价值群体聚合。 [官方推荐正例]: Top 10 Sales = CALCULATE([Total Sales], TOPN(10, ALL('DimCustomer'[CustomerKey]), [Total Sales], DESC)) [避坑防错反例]: 在前端拉取全量数据再做截断导致带宽打满"
+  },
+  {
+    "title": "DAX 函数: NEXTDAY (Time Intelligence)",
+    "content": "[函数名称]: NEXTDAY [所属领域]: Time Intelligence [函数签名]: NEXTDAY(<dates>) [返回值类型]: 单列日期表 [底层机制与执行逻辑]: 返回当前筛选上下文最大日期后一天的日期集。 [官方推荐正例]: Sales Tomorrow = CALCULATE([Total Sales], NEXTDAY('DimDate'[Date])) [避坑防错反例]: 超出日期表边界返回空"
+  },
+  {
+    "title": "DAX 函数: DATATABLE (Table Manipulation)",
+    "content": "[函数名称]: DATATABLE [所属领域]: Table Manipulation [函数签名]: DATATABLE(<name1>, <type1>[, <name2>, <type2> ...], {{<val1>, <val2> ...}, ...}) [返回值类型]: 静态内联表 [底层机制与执行逻辑]: 在 DAX 代码内部硬编码静态物理表(类似临时配置映射表)。支持 INTEGER, STRING, CURRENCY, BOOLEAN, DOUBLE, DATETIME。 [官方推荐正例]: AgeBands = DATATABLE(\"Band\", STRING, \"MinAge\", INTEGER, {{\"青年\", 18}, {\"中年\", 40}}) [避坑防错反例]: 类型声明与实际值字面量不匹配"
+  },
+  {
+    "title": "DAX 函数: STDEV.P (Statistical)",
+    "content": "[函数名称]: STDEV.P [所属领域]: Statistical [函数签名]: STDEV.P(<column>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 计算总体标准偏差(将整列视作全部总体 Population)。 [官方推荐正例]: PopStdDev = STDEV.P('FactSales'[Amount]) [避坑防错反例]: 样本数据误用总体公式"
+  },
+  {
+    "title": "DAX 函数: OPENINGBALANCEMONTH (Time Intelligence)",
+    "content": "[函数名称]: OPENINGBALANCEMONTH [所属领域]: Time Intelligence [函数签名]: OPENINGBALANCEMONTH(<expression>, <dates>[, <filter>]) [返回值类型]: 标量值 [底层机制与执行逻辑]: 计算当月月初第一天的期初结余。常用于库存快照、银行账户期初结存。 [官方推荐正例]: Opening Stock = OPENINGBALANCEMONTH([Inventory Qty], 'DimDate'[Date]) [避坑防错反例]: 月末流量指标误用期初"
+  },
+  {
+    "title": "DAX 函数: COUNTX (Aggregation)",
+    "content": "[函数名称]: COUNTX [所属领域]: Aggregation [函数签名]: COUNTX(<table>, <expression>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 迭代函数:遍历表并统计表达式求值结果非空的行数。 [官方推荐正例]: Active Customer Count = COUNTX('DimCustomer', IF([Total Sales] > 0, 1, BLANK())) [避坑防错反例]: 循环内复杂度量值无端转换"
+  },
+  {
+    "title": "DAX 函数: LASTNONBLANK (Time Intelligence)",
+    "content": "[函数名称]: LASTNONBLANK [所属领域]: Time Intelligence [函数签名]: LASTNONBLANK(<column>, <expression>) [返回值类型]: 单列单行表 [底层机制与执行逻辑]: 按降序扫描列,返回使表达式求值非空的最后一个对应的值(如最新成交价、最新库存结存)。 [官方推荐正例]: LastSoldDate = LASTNONBLANK('FactSales'[OrderDate], [Total Sales]) [避坑防错反例]: 全列逐行循环评估导致慢查询"
+  },
+  {
+    "title": "DAX 函数: LASTNONBLANKVALUE (Time Intelligence)",
+    "content": "[函数名称]: LASTNONBLANKVALUE [所属领域]: Time Intelligence [函数签名]: LASTNONBLANKVALUE(<column>, <expression>) [返回值类型]: 标量值 [底层机制与执行逻辑]: 现代半累加指标官方首选:直接返回排序列中最后一个非空表达式的标量计算结果(如期末最新汇率、最新盘点库存)。 [官方推荐正例]: Latest Inventory = LASTNONBLANKVALUE('DimDate'[Date], [Inventory Qty]) [避坑防错反例]: 未在日期维度上排序列导致乱序"
+  },
+  {
+    "title": "DAX 函数: COMBINEVALUES (Text)",
+    "content": "[函数名称]: COMBINEVALUES [所属领域]: Text [函数签名]: COMBINEVALUES(<delimiter>, <expression1>, <expression2>[, <expression3> ...]) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 使用指定分隔符连接两个或多个表达式。在 DirectQuery 模式下被优化为物理复合键筛选,性能远高于 `&` 连接符。 [官方推荐正例]: CompositeKey = COMBINEVALUES(\"|\", 'FactSales'[StoreKey], 'FactSales'[DateKey]) [避坑防错反例]: 分隔符选用了业务字段中可能出现的字符导致键碰撞"
+  },
+  {
+    "title": "DAX 函数: SUMX (Aggregation)",
+    "content": "[函数名称]: SUMX [所属领域]: Aggregation [函数签名]: SUMX(<table>, <expression>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 迭代函数:遍历表每一行建立行上下文,计算表达式并求和。严禁在循环体中无端调用复杂度量值以防止逐行上下文转换。 [官方推荐正例]: Total Margin = SUMX('FactSales', 'FactSales'[Qty] * ('FactSales'[Price] - 'FactSales'[Cost])) [避坑防错反例]: SUMX('FactSales', [ComplexMeasure]) -- 逐行触发上下文转换引发几何级卡死"
+  },
+  {
+    "title": "DAX 函数: MEDIANX (Aggregation)",
+    "content": "[函数名称]: MEDIANX [所属领域]: Aggregation [函数签名]: MEDIANX(<table>, <expression>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 迭代函数:遍历表计算每行表达式并输出其中位数。 [官方推荐正例]: Median Order Value = MEDIANX(VALUES('FactSales'[OrderID]), [Total Sales]) [避坑防错反例]: 大表循环性能消耗高"
+  },
+  {
+    "title": "DAX 函数: AVERAGEX (Aggregation)",
+    "content": "[函数名称]: AVERAGEX [所属领域]: Aggregation [函数签名]: AVERAGEX(<table>, <expression>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 迭代函数:遍历表计算每行表达式的算术平均值。空值表达式会被自动跳过。 [官方推荐正例]: Avg Order Sales = AVERAGEX(VALUES('FactSales'[OrderID]), [Total Sales]) [避坑防错反例]: 未用 VALUES 聚合订单 ID 直接 AVERAGEX 事实表导致按行算错"
+  },
+  {
+    "title": "DAX 函数: EXCEPT (Table Manipulation)",
+    "content": "[函数名称]: EXCEPT [所属领域]: Table Manipulation [函数签名]: EXCEPT(<table1>, <table2>) [返回值类型]: 差集表 [底层机制与执行逻辑]: 返回在 table1 中存在但在 table2 中不存在的行集合。常用于流失客户识别、未完成任务筛选。 [官方推荐正例]: ChurnedCustomers = EXCEPT(VALUES('Fact2025'[CustKey]), VALUES('Fact2026'[CustKey])) [避坑防错反例]: 两表参数顺序传反逻辑彻底颠倒"
+  },
+  {
+    "title": "DAX 函数: TRUNC (Math & Trig)",
+    "content": "[函数名称]: TRUNC [所属领域]: Math & Trig [函数签名]: TRUNC(<number>[, <num_digits>]) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 直接截断截取数字的小数部分,不进行任何四舍五入。 [官方推荐正例]: IntPart = TRUNC('Fact'[Rate], 0) [避坑防错反例]: 与 INT 的负数向下取整区别(TRUNC 朝零截断,INT 朝负无穷取整)"
+  },
+  {
+    "title": "DAX 函数: PERCENTILE.EXC (Statistical)",
+    "content": "[函数名称]: PERCENTILE.EXC [所属领域]: Statistical [函数签名]: PERCENTILE.EXC(<column>, <k>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 计算排除两端边界 (0 到 1 开区间) 的第 k 百分位数。 [官方推荐正例]: P90Exc = PERCENTILE.EXC('FactSales'[Amount], 0.9) [避坑防错反例]: 数据点过少时 k 超出可用开区间报错"
+  },
+  {
+    "title": "DAX 函数: WEEKDAY (Date & Time)",
+    "content": "[函数名称]: WEEKDAY [所属领域]: Date & Time [函数签名]: WEEKDAY(<date>[, <return_type>]) [返回值类型]: 标量整数 (1-7) [底层机制与执行逻辑]: 返回星期几编号。return_type=2 时,星期一为 1,星期日为 7(符合中国及国际 ISO 标准习惯)。 [官方推荐正例]: DayOfWeek = WEEKDAY('DimDate'[Date], 2) [避坑防错反例]: 默认 return_type=1 时星期天为 1,易与国人习惯混淆"
+  },
+  {
+    "title": "DAX 函数: PERCENTILE.INC (Statistical)",
+    "content": "[函数名称]: PERCENTILE.INC [所属领域]: Statistical [函数签名]: PERCENTILE.INC(<column>, <k>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 计算列中包含边界 (0 到 1 闭区间) 的第 k 百分位数。k=0.9 表示前 10% 高价值分界线。 [官方推荐正例]: P90 = PERCENTILE.INC('FactSales'[Amount], 0.9) [避坑防错反例]: k 小于 0 或大于 1 抛出异常"
+  },
+  {
+    "title": "DAX 函数: SWITCH (Logical & Info)",
+    "content": "[函数名称]: SWITCH [所属领域]: Logical & Info [函数签名]: SWITCH(<expression>, <value1>, <result1>[, <value2>, <result2> ...][, <else>]) [返回值类型]: 任意标量 [底层机制与执行逻辑]: 多分支条件匹配。商业智能官方最佳实践:使用 SWITCH(TRUE(), cond1, res1, cond2, res2...) 模式实现清晰优雅的多阶梯条件评级。 [官方推荐正例]: Rating = SWITCH(TRUE(), [Margin] >= 0.3, \"优\", [Margin] >= 0.1, \"良\", \"及格\") [避坑防错反例]: 条件顺序颠倒导致下方分支被永久短路遮蔽"
+  },
+  {
+    "title": "DAX 函数: IF (Logical & Info)",
+    "content": "[函数名称]: IF [所属领域]: Logical & Info [函数签名]: IF(<logical_test>, <value_if_true>[, <value_if_false>]) [返回值类型]: 任意标量 [底层机制与执行逻辑]: 条件判断。具有短路求值 (Short-Circuit) 特性:仅当测试条件为真时才计算第二参数,否则计算第三参数(省略时默认返回 BLANK())。 [官方推荐正例]: Discounted = IF([Total Sales] > 1000, [Total Sales] * 0.9, [Total Sales]) [避坑防错反例]: 多层嵌套 IF 导致代码极难维护与调试"
+  },
+  {
+    "title": "DAX 函数: NEXTMONTH (Time Intelligence)",
+    "content": "[函数名称]: NEXTMONTH [所属领域]: Time Intelligence [函数签名]: NEXTMONTH(<dates>) [返回值类型]: 单列日期表 [底层机制与执行逻辑]: 返回紧邻下一个完整月的全部日期切片。 [官方推荐正例]: Sales Next Month = CALCULATE([Total Sales], NEXTMONTH('DimDate'[Date])) [避坑防错反例]: 边界溢出"
+  },
+  {
+    "title": "DAX 函数: ALLNOBLANKROW (Filter & Context)",
+    "content": "[函数名称]: ALLNOBLANKROW [所属领域]: Filter & Context [函数签名]: ALLNOBLANKROW([<tableNameOrColumnName>]) [返回值类型]: 表 (Table) [底层机制与执行逻辑]: 返回父表中除由于外键孤立(参照完整性冲突)而由引擎自动生成的空白行之外的所有行。与 ALL 类似但不暴露额外生成的 Blank Row。 [官方推荐正例]: CleanCategories = ALLNOBLANKROW('DimProduct'[Category]) [避坑防错反例]: 用 ALL 代替 ALLNOBLANKROW 时在孤立外键事实下会返回额外的空行"
+  },
+  {
+    "title": "DAX 函数: AVERAGE (Aggregation)",
+    "content": "[函数名称]: AVERAGE [所属领域]: Aggregation [函数签名]: AVERAGE(<column>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 计算列中所有数值的算术平均值。自动忽略 BLANK 空值行(分母不计入空行)。 [官方推荐正例]: Avg Unit Price = AVERAGE('FactSales'[UnitPrice]) [避坑防错反例]: AVERAGE('FactSales'[ColA] / 'FactSales'[ColB]) -- 语法错误,多列必须用 AVERAGEX"
+  },
+  {
+    "title": "DAX 函数: SUMMARIZECOLUMNS (Table Manipulation)",
+    "content": "[函数名称]: SUMMARIZECOLUMNS [所属领域]: Table Manipulation [函数签名]: SUMMARIZECOLUMNS([<groupBy_columnName> ...][, <filterTable> ...], \"<name>\", <expression> ...) [返回值类型]: 表 (Table) [底层机制与执行逻辑]: 现代 Power BI 报表视觉对象的底层执行底座,支持直接跨表分组和全局注入外部过滤,性能最强。约束限制:严禁在存在行上下文的环境中运行(如嵌套在计算列或 SUMX 内部会直接报错)。 [官方推荐正例]: EVALUATE SUMMARIZECOLUMNS('DimProduct'[Category], FILTER('DimDate', 'DimDate'[Year] = 2026), \"Sales\", [Total Sales]) [避坑防错反例]: SUMX('Table', SUMMARIZECOLUMNS(...)) -- 致命错误:SUMMARIZECOLUMNS 不能在行上下文中执行"
+  },
+  {
+    "title": "DAX 函数: CLOSINGBALANCEMONTH (Time Intelligence)",
+    "content": "[函数名称]: CLOSINGBALANCEMONTH [所属领域]: Time Intelligence [函数签名]: CLOSINGBALANCEMONTH(<expression>, <dates>[, <filter>]) [返回值类型]: 标量值 [底层机制与执行逻辑]: 计算当月最后一天闭市/期末结余(快照指标)。对于非累加性指标(库存、存款余额)至关重要。 [官方推荐正例]: Closing Inventory = CLOSINGBALANCEMONTH([Inventory Qty], 'DimDate'[Date]) [避坑防错反例]: 对销售额等累加指标误用期末结余"
+  },
+  {
+    "title": "DAX 函数: YEARFRAC (Time Intelligence)",
+    "content": "[函数名称]: YEARFRAC [所属领域]: Time Intelligence [函数签名]: YEARFRAC(<start_date>, <end_date>[, <basis>]) [返回值类型]: 标量浮点数 [底层机制与执行逻辑]: 计算两个日期间所占整年的小数比例。常用于债券计息、按天折旧与员工工龄折算。 [官方推荐正例]: TenureYears = YEARFRAC('DimEmployee'[HireDate], TODAY(), 1) [避坑防错反例]: 基准 basis 传参不匹配财务规则"
+  },
+  {
+    "title": "DAX 函数: CONCATENATEX (Text)",
+    "content": "[函数名称]: CONCATENATEX [所属领域]: Text [函数签名]: CONCATENATEX(<table>, <expression>[, <delimiter>][, <orderBy_expression>[, <order>]]) [返回值类型]: 标量文本 [底层机制与执行逻辑]: 迭代函数:遍历表计算文本表达式并用分隔符拼接,支持显式指定排序。常用于卡片图动态显示已选切片器标签项。 [官方推荐正例]: SelectedItems = CONCATENATEX(VALUES('DimProduct'[Category]), 'DimProduct'[Category], \", \", 'DimProduct'[Category], ASC) [避坑防错反例]: 百万行事实表上调用导致生成超大字符串耗尽网关"
+  },
+  {
+    "title": "DAX 函数: STDEV.S (Statistical)",
+    "content": "[函数名称]: STDEV.S [所属领域]: Statistical [函数签名]: STDEV.S(<column>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 计算样本标准偏差(除以 N-1,针对从母体中抽取的样本)。 [官方推荐正例]: SampleStdDev = STDEV.S('FactSales'[Amount]) [避坑防错反例]: 样本量少于 2 时报错"
+  },
+  {
+    "title": "DAX 函数: VAR.S (Statistical)",
+    "content": "[函数名称]: VAR.S [所属领域]: Statistical [函数签名]: VAR.S(<column>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 计算样本方差(除以 N-1 的无偏估计)。 [官方推荐正例]: SampleVariance = VAR.S('FactSales'[Amount]) [避坑防错反例]: 样本数小于 2 报错"
+  },
+  {
+    "title": "DAX 函数: XIRR (Financial)",
+    "content": "[函数名称]: XIRR [所属领域]: Financial [函数签名]: XIRR(<table>, <values>, <dates>[, <guess>]) [返回值类型]: 标量浮点数 [底层机制与执行逻辑]: 计算不定期现金流的内部收益率 (Internal Rate of Return)。现金流必须至少包含一笔正值(流入)与一笔负值(流出)。 [官方推荐正例]: ProjectIRR = XIRR('FactCashFlow', 'FactCashFlow'[Amount], 'FactCashFlow'[Date]) [避坑防错反例]: 全正数或全负数现金流导致算法无法收敛报错"
+  },
+  {
+    "title": "DAX 函数: INTERSECT (Table Manipulation)",
+    "content": "[函数名称]: INTERSECT [所属领域]: Table Manipulation [函数签名]: INTERSECT(<table1>, <table2>) [返回值类型]: 交集表 [底层机制与执行逻辑]: 返回同时出现在 table1 和 table2 中的行,保留 table1 的数据世系 (Lineage)。 [官方推荐正例]: RetainedCustomers = INTERSECT(VALUES('Fact2025'[CustKey]), VALUES('Fact2026'[CustKey])) [避坑防错反例]: 两表列结构不同导致报错"
+  },
+  {
+    "title": "DAX 函数: DIVIDE (Aggregation)",
+    "content": "[函数名称]: DIVIDE [所属领域]: Aggregation [函数签名]: DIVIDE(<numerator>, <denominator>[, <alternateResult>]) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 安全商业除法:分母为 0 或 BLANK 时自动返回第三参数(默认返回 BLANK(),便于视觉对象自动优化跳过稀疏行)。严禁使用 `/` 运算符。 [官方推荐正例]: Gross Margin % = DIVIDE([Gross Margin], [Total Sales], 0) [避坑防错反例]: Margin % = [Gross Margin] / [Total Sales] -- 分母为 0 直接向用户抛出 Infinity / NaN 报错"
+  },
+  {
+    "title": "实战场景: 亿级数据 DirectQuery 复合模型与双模式聚合表优化",
+    "content": "[业务痛点与应用背景]: 企业事实表超过 10 亿行,无法全部载入内存(Import 模式受限)。使用纯 DirectQuery 会导致前端报表卡死在数据库 SQL 生成。 [生产级双模式架构]: 1. 事实明细表 'FactSales_DirectQuery' 保持 DirectQuery 模式直连底层数仓(只供钻取明细); 2. 建立轻量级导入模式聚合表 'FactSales_Agg' (按 Date, Store, Product 分组,仅几十万行); 3. 在 Power BI 中配置“管理聚合 (Manage Aggregations)”。 [DAX 度量值设计准则]: 所有的度量值严格书写为标准的简单聚合: Total Big Data Sales = SUM('FactSales_DirectQuery'[Amount]) [底层命中机制]: 当用户在前端视觉对象拖入高层级维度时,Power BI 引擎内部自动重写查询并将请求无缝路由至内存中的 'FactSales_Agg' 聚合表(毫秒级响应);仅当用户展开至底层事务明细时,才下发 DirectQuery SQL。"
+  },
+  {
+    "title": "实战场景: 混合粒度数据建模 (月度预算向下均摊拆分至日)",
+    "content": "[业务痛点与应用背景]: 销售事实表是日粒度 (Day Level),但财务预算表只有月粒度 (Month Level)。用户在报表选中某一天或某一周时,需要预算值自动按当月工作日天数(或历史销售权重)向下精确均摊。 [核心函数组合]: SUMX + VALUES + CALCULATE + ALL + DIVIDE [生产级 DAX 实现]: -- 纯工作日均摊度量值: Budget Daily Allocated = SUMX( VALUES('DimDate'[YearMonth]), VAR CurrentMonthBudget = [Monthly Budget Target] VAR WorkingDaysInMonth = CALCULATE( COUNTROWS('DimDate'), ALLEXCEPT('DimDate', 'DimDate'[YearMonth]), 'DimDate'[IsWorkDay] = TRUE ) VAR SelectedWorkingDays = CALCULATE( COUNTROWS('DimDate'), 'DimDate'[IsWorkDay] = TRUE ) VAR DailyAllocRatio = DIVIDE(SelectedWorkingDays, WorkingDaysInMonth, 0) RETURN CurrentMonthBudget * DailyAllocRatio )"
+  },
+  {
+    "title": "实战场景: 多对多 (N:M) 关系与桥接表性能调优模式",
+    "content": "[业务痛点与应用背景]: 一个客户拥有多个标签,一个标签对应多个客户;或者医生与多家医院、保单与多个被保人。开启全局多对多双向物理关系会导致 VertiPaq 内存呈笛卡尔膨胀,甚至产生拓扑死锁。 [核心函数组合]: CALCULATE + TREATAS / CROSSFILTER(None) [生产级 DAX 实现]: -- 架构设计: DimCustomer (1) -> (N) BridgeCustomerTag (N) <- (1) DimTag -- 物理关系保持单向,度量值中注入 TREATAS 动态穿透: Sales by Selected Tags = VAR SelectedCustomerKeys = CALCULATETABLE( VALUES('BridgeCustomerTag'[CustomerKey]), 'DimTag'[TagName] = SELECTEDVALUE('DimTag'[TagName]) ) RETURN CALCULATE( [Total Sales], TREATAS(SelectedCustomerKeys, 'DimCustomer'[CustomerKey]) ) [性能收益]: 消除了全局双向关系引发的模型歧义,内存开销降低 80% 以上,支持千万级实体平滑切片。"
+  },
+  {
+    "title": "实战场景: 动态计算组 (Calculation Groups) 与指标矩阵正交切换",
+    "content": "[业务痛点与应用背景]: 报表有 20 个度量值(销售额、毛利、订单量、件数等),需要分别看 YTD、MTD、YOY、YOY% 等 8 种时间粒度。手写度量值需创建 160 个度量值,模型臃肿不堪。 [核心机制与 SELECTEDMEASURE]: 利用 XMLA / Tabular Editor 创建“计算组 (Calculation Group)”,统一应用时间变换,将 160 个度量值缩减为 20 个指标 + 1 个时间计算组! [生产级 DAX 计算项 (Calculation Items)]: -- 1. [Current] 计算项: SELECTEDMEASURE() -- 2. [YTD] 计算项: CALCULATE(SELECTEDMEASURE(), DATESYTD('DimDate'[Date])) -- 3. [YOY %] 计算项: VAR PriorYear = CALCULATE(SELECTEDMEASURE(), SAMEPERIODLASTYEAR('DimDate'[Date])) VAR CurrentVal = SELECTEDMEASURE() RETURN DIVIDE(CurrentVal - PriorYear, PriorYear, BLANK())"
+  },
+  {
+    "title": "实战场景: 缓慢变化维 (SCD Type 2) 非等值生效区间历史快照关联",
+    "content": "[业务痛点与应用背景]: 企业组织架构、销售员负责大区或产品单价随时间版本迭代(存在 StartDate、EndDate 与 IsCurrent 列)。销售事实发生于某一历史时间点,传统的一对多等值关系无法把事实表精准挂载到事件发生时刻所对应的历史版本维度上。 [核心函数组合]: CALCULATETABLE + FILTER + TREATAS + VAR + GENERATE [生产级 DAX 实现]: -- 销售人员历史业绩归属度量值 (精确判定事实发生日期的 SCD2 历史快照) Historical Attributed Sales = SUMX( VALUES('FactSales'[OrderDate]), VAR CurrentOrderDate = 'FactSales'[OrderDate] VAR ValidSalesReps = CALCULATETABLE( VALUES('DimSalesRep_SCD2'[SalesRepKey]), 'DimSalesRep_SCD2'[StartDate] <= CurrentOrderDate, 'DimSalesRep_SCD2'[EndDate] >= CurrentOrderDate || ISBLANK('DimSalesRep_SCD2'[EndDate]), REMOVEFILTERS('DimDate') ) RETURN CALCULATE( [Total Sales], TREATAS(ValidSalesReps, 'FactSales'[SalesRepKey]) ) ) [底层优化与避坑]: 非等值关联极易引发 VertiPaq 笛卡尔积。严禁对数百万行事实表整表进行逐行 FILTER;必须先按维度表或者聚合后的日期 VALUES('FactSales'[OrderDate]) 进行外层分组,缩小内层计算表的基数,避免引起内存暴涨。"
+  },
+  {
+    "title": "实战场景: 时间周期自适应动态选择器 (CY / YTD / MTD / Rolling 30D)",
+    "content": "[业务痛点与应用背景]: 单一卡片图或趋势折线图,需要根据单选按钮切片器(当月、本年至今、近30天、上年同期)动态切换计算逻辑。 [核心函数组合]: SWITCH + SELECTEDVALUE + DATESYTD + DATESINPERIOD + SAMEPERIODLASTYEAR [生产级 DAX 实现]: -- 辅助配置表 'PeriodSelectorTable' [OptionID, OptionLabel] Adaptive Sales Metric = VAR SelectedOption = SELECTEDVALUE('PeriodSelectorTable'[OptionLabel], \"本年累计 (YTD)\") RETURN SWITCH( SelectedOption, \"当期原值 (Current)\", [Total Sales], \"本年累计 (YTD)\", CALCULATE([Total Sales], DATESYTD('DimDate'[Date])), \"本月累计 (MTD)\", CALCULATE([Total Sales], DATESMTD('DimDate'[Date])), \"滚动 30 天 (R30D)\", CALCULATE([Total Sales], DATESINPERIOD('DimDate'[Date], MAX('DimDate'[Date]), -30, DAY)), \"上年同期 (SPLY)\", CALCULATE([Total Sales], SAMEPERIODLASTYEAR('DimDate'[Date])), [Total Sales] )"
+  },
+  {
+    "title": "实战场景: 购物篮关联分析与交叉销售率 (Market Basket Analysis)",
+    "content": "[业务痛点与应用背景]: 零售商城需要知道:购买了“iPhone 手机”的订单中,有多少订单“同时购买”了“AirPods 耳机”?需要切片器选中品类 A,分析关联品类 B 的渗透率。 [核心函数组合]: CALCULATETABLE + VALUES + INTERSECT + COUNTROWS [生产级 DAX 实现]: -- 模型设计: 主产品表 'DimProduct' 与对比产品表 'DimProductComparison' (断开关系) Orders Buying Both Products = VAR ProductAOrders = CALCULATETABLE( VALUES('FactSales'[OrderID]), ALL('DimProductComparison') ) VAR ProductBOrders = CALCULATETABLE( VALUES('FactSales'[OrderID]), ALL('DimProduct'), USERELATIONSHIP('FactSales'[ProductKey], 'DimProductComparison'[ProductKey]) ) VAR BothOrders = INTERSECT(ProductAOrders, ProductBOrders) RETURN COUNTROWS(BothOrders) Cross Sell Attach Rate % = DIVIDE([Orders Buying Both Products], [Orders Buying Product A], 0)"
+  },
+  {
+    "title": "实战场景: 动态多币种折算与汇率快照匹配",
+    "content": "[业务痛点与应用背景]: 跨国集团业务事实数据以多币种(USD, EUR, CNY, JPY)原币入账,管理看板需支持切片器任意切换“报表目标币种”,并按交易当日汇率(或月末平均汇率)动态折算。 [核心函数组合]: SUMX + VALUES + RELATED / LOOKUPVALUE + TREATAS [生产级 DAX 实现]: -- 汇率事实表: FactExchangeRate [Date, FromCurrency, ToCurrency, SpotRate] Sales Converted = VAR TargetCurrency = SELECTEDVALUE('DimCurrency'[CurrencyCode], \"USD\") RETURN SUMX( VALUES('FactSales'[OrderDate]), VAR CurrentDate = 'FactSales'[OrderDate] RETURN SUMX( VALUES('FactSales'[CurrencyCode]), VAR OrigCurrency = 'FactSales'[CurrencyCode] VAR DayRate = IF( OrigCurrency = TargetCurrency, 1.0, CALCULATE( MAX('FactExchangeRate'[SpotRate]), 'FactExchangeRate'[Date] = CurrentDate, 'FactExchangeRate'[FromCurrency] = OrigCurrency, 'FactExchangeRate'[ToCurrency] = TargetCurrency ) ) RETURN [Total Sales Original] * DayRate ) )"
+  },
+  {
+    "title": "实战场景: 纯度量值作为坐标轴 (Measure-as-Axis) 的动态直方图分布与分箱",
+    "content": "[业务痛点与应用背景]: 传统的直方图依赖物理计算列(如“客户终身价值 LTV 分组”)。但由于物理计算列在模型刷新时固化,无法响应前端切片器(例如用户筛选“仅看过去半年”时,客户的总销售额发生变化,其所属的分组区间也必须实时重排)。 [核心函数组合]: COUNTROWS + FILTER + VALUES + GENERATE + SELECTEDVALUE + MIN / MAX [生产级 DAX 实现]: -- 1. 建立非关联的独立分箱配置表 'DimBinConfig' (带 MinValue, MaxValue, BinName, SortOrder) -- 2. 统计动态落入各分箱内的实体数量 Dynamic Entity Count In Bin = VAR CurrentMin = SELECTEDVALUE('DimBinConfig'[MinValue]) VAR CurrentMax = SELECTEDVALUE('DimBinConfig'[MaxValue]) VAR EligibleEntities = FILTER( VALUES('DimCustomer'[CustomerKey]), VAR CustomerDynamicSales = [Total Sales] RETURN CustomerDynamicSales >= CurrentMin && CustomerDynamicSales < CurrentMax ) RETURN COUNTROWS(EligibleEntities) [底层优化与避坑]: 由于非关联分箱无法借助物理关系网,VertiPaq 需要对每个分箱区间执行一次全客户评估。对于 100 万级以上客户表,必须在 FILTER 内部先执行非空早筛 (`NOT ISBLANK([Total Sales])`),避免无交易客户全部参与浮点区间判定。"
+  },
+  {
+    "title": "实战场景: 物料清单 (BOM) 多级递归与装配树父子拓扑动态展开",
+    "content": "[业务痛点与应用背景]: 离散制造与装配企业中,一个最终产品 (Parent Part) 由多级子零部件 (Child Components) 递归构成,层级深度不固定(如 3~12 层)。业务需要在任意选中父部件时,向下完全穿透展开所有末端原材料清单并准确汇总成本与采购用量。 [核心函数组合]: PATH + PATHCONTAINS + PATHLENGTH + PATHITEM + CALCULATE + SUMX [生产级 DAX 实现]: -- 1. 在 BOM 维度表中构建物料血缘拓扑路径计算列 (存储引擎高效压缩) BOMPath = PATH('DimBOM'[ComponentID], 'DimBOM'[ParentComponentID]) BOMDepth = PATHLENGTH('DimBOM'[BOMPath]) -- 2. 动态多级 BOM 原材料总成本穿透度量值 BOM Exploded Total Cost = VAR SelectedAssembly = SELECTEDVALUE('DimBOM'[ComponentID]) VAR DescendantBOM = FILTER( ALL('DimBOM'), PATHCONTAINS('DimBOM'[BOMPath], SelectedAssembly) ) RETURN CALCULATE( SUMX('FactProductionOrder', 'FactProductionOrder'[Qty] * 'FactProductionOrder'[UnitCost]), DescendantBOM ) [底层优化与避坑]: 在 VertiPaq 中,PATH 函数生成的是带有竖线分隔符的紧凑字符串。务必在维度表构建计算列而非在度量值中动态执行 PATH,以便 VertiPaq 对 PATH 列建立全局字典与位图索引,将复杂的图论拓扑遍历转化为快速的按位包含检索。"
+  },
+  {
+    "title": "实战场景: 长周期断续低频交易客户流失预警与复活精准归因",
+    "content": "[业务痛点与应用背景]: 大型 B2B 工业设备或大宗贸易客户交易频率极低(每年仅 1~2 次甚至数年一次,属于 Intermittent Demand)。不能使用快消品通用的 90 天未购即流失标准;必须动态计算每个客户专属的“历史平均采购间隔 + 2 倍标准差”,动态判定其是否真正流失,并在其重新下单时精准归因为“沉睡客户复活”。 [核心函数组合]: CALCULATE + DATEDIFF + AVERAGEX + STDEVX.P + FILTER + TOPN [生产级 DAX 实现]: -- 动态复活客户销售额度量值 Resurrected Customer Revenue = VAR CurrentEvaluationDate = MAX('DimDate'[Date]) VAR ActiveCustomersInPeriod = VALUES('FactSales'[CustomerKey]) VAR ResurrectedCustomers = FILTER( ActiveCustomersInPeriod, VAR PreviousPurchaseDate = CALCULATE( MAX('FactSales'[OrderDate]), 'FactSales'[OrderDate] < CurrentEvaluationDate, REMOVEFILTERS('DimDate') ) VAR DaysSincePreviousPurchase = DATEDIFF(PreviousPurchaseDate, CurrentEvaluationDate, DAY) VAR CustomerCustomDormantThreshold = 365 -- 可扩展为客户个体方差间隔 RETURN NOT ISBLANK(PreviousPurchaseDate) && DaysSincePreviousPurchase > CustomerCustomDormantThreshold ) RETURN CALCULATE( [Total Sales], KEEPFILTERS(ResurrectedCustomers) ) [底层优化与避坑]: DATEDIFF 属于公式引擎 (FE) 逐行算子。计算全量历史订单时间差时,务必通过 CALCULATE(MAX(...), REMOVEFILTERS('DimDate')) 获取单值标量,切勿在客户表上使用 GENERATE 展开明细笛卡尔积。"
+  },
+  {
+    "title": "实战场景: 矩阵多层逐级穿透中的 ALLSELECTED 影子上下文解耦与层级总计守恒",
+    "content": "[业务痛点与应用背景]: 在多层级矩阵(如:大区 -> 省份 -> 城市)中,使用 ALLSELECTED 计算“当前行占上一级百分比”或“占可视总计百分比”时,一旦矩阵存在复杂的行/列交叉折叠或切片器组合筛选,ALLSELECTED 会唤醒“影子上下文 (Shadow Context)”,导致小计/总计算出的百分比相加不等于 100% 出现逻辑崩溃。 [核心函数组合]: ALLSELECTED + REMOVEFILTERS + ISINSCOPE + SELECTEDVALUE + COALESCE [生产级 DAX 实现]: -- 健壮的矩阵逐级占比度量值 (严格消除影子上下文污染) Robust Level Subtotal Pct = VAR CurrentMeasure = [Total Sales] VAR Denominator = SWITCH( TRUE(), ISINSCOPE('DimGeography'[City]), CALCULATE([Total Sales], REMOVEFILTERS('DimGeography'[City])), ISINSCOPE('DimGeography'[Province]), CALCULATE([Total Sales], REMOVEFILTERS('DimGeography'[Province])), ISINSCOPE('DimGeography'[Region]), CALCULATE([Total Sales], REMOVEFILTERS('DimGeography'[Region])), CALCULATE([Total Sales], ALLSELECTED('DimGeography')) ) RETURN DIVIDE(CurrentMeasure, Denominator) [底层优化与避坑]: 严禁在有多层穿透的矩阵度量值中无脑叠加嵌套 CALCULATE(..., ALLSELECTED(...));应使用 ISINSCOPE 明确检测当前渲染层级,并搭配 REMOVEFILTERS 清理特定层级的筛选上下文,彻底绕过 ALLSELECTED 内部影子上下文引起的总计漂移缺陷。"
+  },
+  {
+    "title": "实战场景: 跨非基准多币种实时合成交叉汇率与无交易日就近回退折算",
+    "content": "[业务痛点与应用背景]: 跨国集团业务涉及 30+ 种货币,数仓中仅维护了各币种兑基准币(如美元 USD)的每日中间价。业务需要动态将任意源币种(如 JPY)按当天下单汇率实时换算为目标分析币种(如 EUR)。且遇节假日无牌价时,必须自动就近向前回退至最近一个有效交易日。 [核心函数组合]: LASTNONBLANKVALUE + LOOKUPVALUE + DIVIDE + SELECTEDVALUE + TREATAS [生产级 DAX 实现]: -- 动态合成交叉汇率计算 (含周末/假日自动回退) Cross Currency Converted Amount = VAR TargetCurrency = SELECTEDVALUE('DimTargetCurrency'[CurrencyCode], \"USD\") RETURN SUMX( 'FactOrders', VAR CurrentDate = 'FactOrders'[OrderDate] VAR SourceCurrency = 'FactOrders'[LocalCurrencyCode] VAR LocalAmount = 'FactOrders'[Amount] -- 1. 获取源币种兑 USD 汇率 (无则回退至最近工作日) VAR SourceToUSDRate = IF( SourceCurrency = \"USD\", 1.0, CALCULATE( LASTNONBLANKVALUE('DimExchangeRates'[RateDate], MAX('DimExchangeRates'[ToUSDRate])), 'DimExchangeRates'[RateDate] <= CurrentDate, 'DimExchangeRates'[CurrencyCode] = SourceCurrency, REMOVEFILTERS('DimDate') ) ) -- 2. 获取目标币种兑 USD 汇率 VAR TargetToUSDRate = IF( TargetCurrency = \"USD\", 1.0, CALCULATE( LASTNONBLANKVALUE('DimExchangeRates'[RateDate], MAX('DimExchangeRates'[ToUSDRate])), 'DimExchangeRates'[RateDate] <= CurrentDate, 'DimExchangeRates'[CurrencyCode] = TargetCurrency, REMOVEFILTERS('DimDate') ) ) -- 3. 三角合成交叉汇率: (源币 -> USD) / (目标币 -> USD) VAR CrossRate = DIVIDE(SourceToUSDRate, TargetToUSDRate, 1.0) RETURN LocalAmount * CrossRate ) [底层优化与避坑]: 在逐单外汇换算中,将 SUMX 直接作用于数千万行明细表会导致单线程灾难。应先通过 SUMMARIZECOLUMNS 按 (OrderDate, LocalCurrencyCode) 预聚合成小粒度临时表,在聚合表上完成汇率折算后再汇总。"
+  },
+  {
+    "title": "DAX 函数: FALSE (Logical & Info)",
+    "content": "[函数名称]: FALSE [所属领域]: Logical & Info [函数签名]: FALSE() [返回值类型]: 布尔值 FALSE [底层机制与执行逻辑]: 返回逻辑假值 FALSE。 [官方推荐正例]: IsActive = FALSE() [避坑防错反例]: 误写为字符串 \"FALSE\""
+  },
+  {
+    "title": "DAX 函数: OPENINGBALANCEYEAR (Time Intelligence)",
+    "content": "[函数名称]: OPENINGBALANCEYEAR [所属领域]: Time Intelligence [函数签名]: OPENINGBALANCEYEAR(<expression>, <dates>[, <filter>][, <year_end_date>]) [返回值类型]: 标量值 [底层机制与执行逻辑]: 计算当前公历年或自定义财年第一天的期初结存资产。 [官方推荐正例]: Year Opening Asset = OPENINGBALANCEYEAR([Total Assets], 'DimDate'[Date], \"06/30\") [避坑防错反例]: 财年截止日语法格式错误"
+  },
+  {
+    "title": "DAX 函数: FIRSTNONBLANKVALUE (Time Intelligence)",
+    "content": "[函数名称]: FIRSTNONBLANKVALUE [所属领域]: Time Intelligence [函数签名]: FIRSTNONBLANKVALUE(<column>, <expression>) [返回值类型]: 标量值 [底层机制与执行逻辑]: 更现代快捷:直接返回按列排序后表达式首个非空值所计算出的标量结果(不再需要外层再套 CALCULATE 取值)。 [官方推荐正例]: FirstValidPrice = FIRSTNONBLANKVALUE('DimDate'[Date], [DailyPrice]) [避坑防错反例]: 无数据时返回 BLANK 未防御"
+  },
+  {
+    "title": "DAX 函数: DATEDIFF (Time Intelligence)",
+    "content": "[函数名称]: DATEDIFF [所属领域]: Time Intelligence [函数签名]: DATEDIFF(<date1>, <date2>, <interval>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 计算两个日期之间的跨越间隔数(SECOND, MINUTE, HOUR, DAY, WEEK, MONTH, QUARTER, YEAR)。注意按整日历边界越界计算。 [官方推荐正例]: DeliveryDays = DATEDIFF('FactSales'[OrderDate], 'FactSales'[ShipDate], DAY) [避坑防错反例]: date1 大于 date2 时返回负数未做 ABS 防护"
+  },
+  {
+    "title": "DAX 函数: NOW (Date & Time)",
+    "content": "[函数名称]: NOW [所属领域]: Date & Time [函数签名]: NOW() [返回值类型]: 标量时间戳 (DateTime) [底层机制与执行逻辑]: 返回当前系统的精确日期与时间戳。同样遵循云端 UTC 时区规则。 [官方推荐正例]: RefreshTime = NOW() [避坑防错反例]: 未换算北京时区"
+  },
+  {
+    "title": "DAX 函数: RANDBETWEEN (Math & Trig)",
+    "content": "[函数名称]: RANDBETWEEN [所属领域]: Math & Trig [函数签名]: RANDBETWEEN(<bottom>, <top>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 返回指定上下界闭区间之间的随机整数。 [官方推荐正例]: DiceRoll = RANDBETWEEN(1, 6) [避坑防错反例]: 下界大于上界报错"
+  },
+  {
+    "title": "DAX 函数: PATHCONTAINS (Parent-Child)",
+    "content": "[函数名称]: PATHCONTAINS [所属领域]: Parent-Child [函数签名]: PATHCONTAINS(<path>, <item>) [返回值类型]: 布尔值 [底层机制与执行逻辑]: 检查节点 ID 是否存在于 PATH 路径串中。在动态 RLS 中威力极大:上级领导可自动级联查看其名下所有多层级直接与间接下属的数据,实现零代码维护的树形继承鉴权。 [官方推荐正例]: PATHCONTAINS('DimEmployee'[EmpPath], LOOKUPVALUE('DimEmployee'[Key], 'DimEmployee'[Email], USERPRINCIPALNAME())) [避坑防错反例]: ID 数据类型文本与整数不匹配导致匹配失败"
+  },
+  {
+    "title": "DAX 函数: FIRSTNONBLANK (Time Intelligence)",
+    "content": "[函数名称]: FIRSTNONBLANK [所属领域]: Time Intelligence [函数签名]: FIRSTNONBLANK(<column>, <expression>) [返回值类型]: 单列单行表 [底层机制与执行逻辑]: 按升序扫描列,返回使表达式求值非空的第一行对应的值。老版半累加指标常用,现代推荐 FIRSTNONBLANKVALUE。 [官方推荐正例]: FirstPrice = FIRSTNONBLANK('FactPrice'[Date], [AvgPrice]) [避坑防错反例]: 大表扫描开销大"
+  },
+  {
+    "title": "DAX 函数: DATESMTD (Time Intelligence)",
+    "content": "[函数名称]: DATESMTD [所属领域]: Time Intelligence [函数签名]: DATESMTD(<dates>) [返回值类型]: 单列日期表 [底层机制与执行逻辑]: 返回当前月初至当前最大日期的日期切片集。 [官方推荐正例]: Sales MTD = CALCULATE([Total Sales], DATESMTD('DimDate'[Date])) [避坑防错反例]: 离散日期表报错"
+  },
+  {
+    "title": "DAX 函数: SELECTEDVALUE (Logical & Info)",
+    "content": "[函数名称]: SELECTEDVALUE [所属领域]: Logical & Info [函数签名]: SELECTEDVALUE(<columnName>[, <alternateResult>]) [返回值类型]: 标量值 [底层机制与执行逻辑]: 安全值提取:当目标列有且仅有一个值时返回该值;用户未选(全选)或多选时返回 alternateResult(默认 BLANK())。切片器动态标题标准。 [官方推荐正例]: Title = \"当前选中品类: \" & SELECTEDVALUE('DimProduct'[Category], \"全部品类汇总\") [避坑防错反例]: 手写繁琐的 IF(HASONEVALUE(C), VALUES(C), alt)"
+  },
+  {
+    "title": "DAX 函数: HOUR (Date & Time)",
+    "content": "[函数名称]: HOUR [所属领域]: Date & Time [函数签名]: HOUR(<datetime>) [返回值类型]: 标量整数 (0-23) [底层机制与执行逻辑]: 提取时间戳中的小时整数(24小时制)。 [官方推荐正例]: OrderHour = HOUR('FactSales'[OrderDateTime]) [避坑防错反例]: 纯日期字段调用返回 0"
+  },
+  {
+    "title": "DAX 函数: DISTINCT (Table Manipulation)",
+    "content": "[函数名称]: DISTINCT [所属领域]: Table Manipulation [函数签名]: DISTINCT(<tableNameOrColumnName>) [返回值类型]: 单列表或单表 [底层机制与执行逻辑]: 返回当前列或表中的不重复值。与 VALUES 的本质区别:DISTINCT 严格遵循物理列中的实际出现值,绝不暴露引擎补偿生成的空白行。 [官方推荐正例]: UniqueColors = DISTINCT('DimProduct'[Color]) [避坑防错反例]: 切片器绑定未分配项时丢失选项"
+  },
+  {
+    "title": "DAX 函数: OR (Logical & Info)",
+    "content": "[函数名称]: OR [所属领域]: Logical & Info [函数签名]: OR(<logical1>, <logical2>) [返回值类型]: 布尔值 [底层机制与执行逻辑]: 逻辑或:任意条件成立即返回 TRUE。日常推荐使用原生运算符 `||`。 [官方推荐正例]: Eligible = [IsMember] || [Sales] > 5000 [避坑防错反例]: 运算符优先级未加括号导致逻辑漂移"
+  },
+  {
+    "title": "DAX 函数: ROUNDUP (Math & Trig)",
+    "content": "[函数名称]: ROUNDUP [所属领域]: Math & Trig [函数签名]: ROUNDUP(<number>, <num_digits>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 始终向上(远离零方向)舍入数值。 [官方推荐正例]: CeilCost = ROUNDUP('Fact'[Cost], 0) [避坑防错反例]: 负数向上舍入行为需关注"
+  },
+  {
+    "title": "DAX 函数: QUOTIENT (Math & Trig)",
+    "content": "[函数名称]: QUOTIENT [所属领域]: Math & Trig [函数签名]: QUOTIENT(<numerator>, <denominator>) [返回值类型]: 标量整数 [底层机制与执行逻辑]: 返回除法运算的整数商部分,丢弃余数。 [官方推荐正例]: Boxes = QUOTIENT('Fact'[Qty], 10) [避坑防错反例]: 分母为 0 报错"
+  },
+  {
+    "title": "DAX 函数: SELECTCOLUMNS (Table Manipulation)",
+    "content": "[函数名称]: SELECTCOLUMNS [所属领域]: Table Manipulation [函数签名]: SELECTCOLUMNS(<table>, <name>, <expression>[, <name>, <expression> ...]) [返回值类型]: 表 (Table) [底层机制与执行逻辑]: 投影运算:只保留新指定的计算列,丢弃原表其他未被选中的列,类似 SQL 的 SELECT col AS alias。 [官方推荐正例]: CustomerInfo = SELECTCOLUMNS('DimCustomer', \"ID\", 'DimCustomer'[CustomerKey], \"Email\", 'DimCustomer'[Email]) [避坑防错反例]: 列名冲突"
+  },
+  {
+    "title": "DAX 函数: CLOSINGBALANCEQUARTER (Time Intelligence)",
+    "content": "[函数名称]: CLOSINGBALANCEQUARTER [所属领域]: Time Intelligence [函数签名]: CLOSINGBALANCEQUARTER(<expression>, <dates>[, <filter>]) [返回值类型]: 标量值 [底层机制与执行逻辑]: 计算当前季度最后一天的期末快照结余。 [官方推荐正例]: Quarter Closing Bal = CLOSINGBALANCEQUARTER([Cash Balance], 'DimDate'[Date]) [避坑防错反例]: 流量指标误用"
+  },
+  {
+    "title": "DAX 函数: GENERATEALL (Table Manipulation)",
+    "content": "[函数名称]: GENERATEALL [所属领域]: Table Manipulation [函数签名]: GENERATEALL(<table1>, <table2>) [返回值类型]: 表 (Table) [底层机制与执行逻辑]: 类似 SQL 的 OUTER APPLY:即使当前行在 table2 中求值返回空表,也会保留 table1 的当前行并将 table2 的列填充为 BLANK。 [官方推荐正例]: AllCustomersWithTopOrder = GENERATEALL('DimCustomer', TOPN(1, RELATEDTABLE('FactSales'), 'FactSales'[Amount], DESC)) [避坑防错反例]: 大表循环性能开销大"
+  },
+  {
+    "title": "DAX 函数: NOT (Logical & Info)",
+    "content": "[函数名称]: NOT [所属领域]: Logical & Info [函数签名]: NOT(<logical>) [返回值类型]: 布尔值 [底层机制与执行逻辑]: 逻辑取反操作:将 TRUE 变为 FALSE,将 FALSE 变为 TRUE。 [官方推荐正例]: IsNotVip = NOT([IsVipCustomer]) [避坑防错反例]: 空值取反为 TRUE 注意防坑"
+  },
+  {
+    "title": "DAX 函数: STDEVX.P (Statistical)",
+    "content": "[函数名称]: STDEVX.P [所属领域]: Statistical [函数签名]: STDEVX.P(<table>, <expression>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 迭代函数:遍历表计算每行表达式并求其总体标准差。 [官方推荐正例]: STDEVX.P(VALUES('DimProduct'[ProductKey]), [Total Sales]) [避坑防错反例]: 循环内复杂度量值转换"
+  },
+  {
+    "title": "DAX 函数: VARX.S (Statistical)",
+    "content": "[函数名称]: VARX.S [所属领域]: Statistical [函数签名]: VARX.S(<table>, <expression>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 迭代函数:遍历表计算表达式的样本方差。 [官方推荐正例]: SampleVarX = VARX.S(VALUES('Dim'[Key]), [Measure]) [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: VARX.P (Statistical)",
+    "content": "[函数名称]: VARX.P [所属领域]: Statistical [函数签名]: VARX.P(<table>, <expression>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 迭代函数:遍历表并计算表达式的总体方差。 [官方推荐正例]: PopVarX = VARX.P(VALUES('Dim'[Key]), [Measure]) [避坑防错反例]: 无"
+  },
+  {
+    "title": "DAX 函数: XNPV (Financial)",
+    "content": "[函数名称]: XNPV [所属领域]: Financial [函数签名]: XNPV(<table>, <values>, <dates>, <rate>) [返回值类型]: 标量数值 [底层机制与执行逻辑]: 计算不定期现金流在指定折现率下的净现值 (Net Present Value)。 [官方推荐正例]: ProjectNPV = XNPV('FactCashFlow', 'FactCashFlow'[Amount], 'FactCashFlow'[Date], 0.08) [避坑防错反例]: 首期日期与折现率基准错位"
+  },
+  {
+    "title": "DAX 函数: TREATAS (Filter & Context)",
+    "content": "[函数名称]: TREATAS [所属领域]: Filter & Context [函数签名]: TREATAS(<expression>, <columnName1>[, <columnName2> ...]) [返回值类型]: 表 (Table) 或 筛选调节器 [底层机制与执行逻辑]: 将表表达式结果作为目标列的数据世系 (Lineage) 注入筛选器。在无物理连线时高效实现跨模型/虚拟关系动态过滤,性能远胜 INTERSECT。 [官方推荐正例]: CALCULATE([Total Sales], TREATAS(VALUES('Budget'[CategoryCode]), 'DimProduct'[CategoryCode])) [避坑防错反例]: FILTER('DimProduct', 'DimProduct'[Code] IN VALUES('Budget'[Code])) -- 低效全表扫描写法"
+  },
+  {
+    "title": "DAX 函数: CLOSINGBALANCEYEAR (Time Intelligence)",
+    "content": "[函数名称]: CLOSINGBALANCEYEAR [所属领域]: Time Intelligence [函数签名]: CLOSINGBALANCEYEAR(<expression>, <dates>[, <filter>][, <year_end_date>]) [返回值类型]: 标量值 [底层机制与执行逻辑]: 计算当前公历年或财年最后一天的期末资产快照。 [官方推荐正例]: Year Closing Asset = CLOSINGBALANCEYEAR([Total Assets], 'DimDate'[Date]) [避坑防错反例]: 无业务日期时误判"
+  },
+  {
+    "title": "DAX 函数: NEXTYEAR (Time Intelligence)",
+    "content": "[函数名称]: NEXTYEAR [所属领域]: Time Intelligence [函数签名]: NEXTYEAR(<dates>[, <year_end_date>]) [返回值类型]: 单列日期表 [底层机制与执行逻辑]: 返回紧邻下一完整年的全部日期。 [官方推荐正例]: Sales Next Full Year = CALCULATE([Total Sales], NEXTYEAR('DimDate'[Date])) [避坑防错反例]: 远期无预算"
+  },
+  {
+    "title": "DAX 函数: AND (Logical & Info)",
+    "content": "[函数名称]: AND [所属领域]: Logical & Info [函数签名]: AND(<logical1>, <logical2>) [返回值类型]: 布尔值 [底层机制与执行逻辑]: 逻辑与:两条件均成立时返回 TRUE。日常开发中推荐直接使用更紧凑的原生运算符 `&&`。 [官方推荐正例]: IsValid = [Sales] > 0 && [Margin] > 0 [避坑防错反例]: 多条件嵌套 AND(AND(c1, c2), c3) 繁琐反模式"
+  }
+]

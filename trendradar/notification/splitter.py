@@ -129,7 +129,7 @@ DEFAULT_BATCH_SIZES = {
 }
 
 # 默认区域顺序
-DEFAULT_REGION_ORDER = ["worldmonitor", "hotlist", "rss", "new_items", "standalone", "ai_analysis", "github"]
+DEFAULT_REGION_ORDER = ["worldmonitor", "hotlist", "rss", "new_items", "standalone", "ai_analysis", "github", "dax"]
 
 
 def split_content_into_batches(
@@ -925,6 +925,13 @@ def split_content_into_batches(
             # 处理 GitHub 热门项目
             current_batch, current_batch_has_content, batches = _process_github_section(
                 github_items, format_type, feishu_separator,
+                current_batch, current_batch_has_content, batches, add_separator,
+                max_bytes=max_bytes
+            )
+        elif region == "dax":
+            # 处理每日 Power BI DAX 技巧精粹
+            current_batch, current_batch_has_content, batches = _process_dax_section(
+                format_type, feishu_separator,
                 current_batch, current_batch_has_content, batches, add_separator,
                 max_bytes=max_bytes
             )
@@ -2025,6 +2032,119 @@ def _process_github_section(
         else:
             current_batch = test_content
             current_batch_has_content = True
+
+    return current_batch, current_batch_has_content, batches
+
+
+
+
+
+# === 每日 Power BI DAX 技巧精粹 ===
+
+def _get_random_dax_tip() -> Optional[Dict[str, str]]:
+    """从 dax_tips.json 随机抽取一个 Power BI DAX 实战技巧"""
+    import os, json, random
+    possible_paths = [
+        os.path.join(os.path.dirname(__file__), "..", "data", "dax_tips.json"),
+        os.path.join(os.getcwd(), "trendradar", "data", "dax_tips.json"),
+        os.path.join(os.getcwd(), "data", "dax_tips.json"),
+    ]
+    for p in possible_paths:
+        norm_p = os.path.normpath(p)
+        if os.path.exists(norm_p):
+            try:
+                with open(norm_p, "r", encoding="utf-8") as f:
+                    tips = json.load(f)
+                    if tips:
+                        return random.choice(tips)
+            except Exception as e:
+                print(f"[DAX] 读取技巧库异常: {e}")
+                return None
+    return None
+
+
+def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
+    """格式化 DAX 技巧文本"""
+    title = tip.get("title", "Power BI DAX 调优技巧")
+    raw_content = tip.get("content", "").strip()
+
+    is_tg = (format_type == "telegram")
+    is_fs = (format_type == "feishu")
+
+    if is_tg:
+        header = "💡 <b>每日 Power BI DAX 技巧精粹</b>\n"
+        title_line = f"🎯 <b>{title}</b>\n"
+    else:
+        header = "💡 **每日 Power BI DAX 技巧精粹**\n"
+        title_line = f"🎯 **{title}**\n"
+
+    sections = []
+    import re
+    tags = re.findall(r"\[([^\]]+)\]:", raw_content)
+    if tags:
+        parts = re.split(r"\[[^\]]+\]:", raw_content)
+        for tag, val in zip(tags, parts[1:]):
+            val_clean = val.strip()
+            if not val_clean:
+                continue
+            if is_tg:
+                if any(k in tag for k in ["正例", "反例", "签名"]):
+                    sections.append(f"• <b>{tag}</b>: <code>{val_clean}</code>")
+                else:
+                    sections.append(f"• <b>{tag}</b>: {val_clean}")
+            elif is_fs:
+                if any(k in tag for k in ["正例", "反例", "签名"]):
+                    sections.append(f"• **{tag}**: `{val_clean}`")
+                else:
+                    sections.append(f"• **{tag}**: {val_clean}")
+            else:
+                if any(k in tag for k in ["正例", "反例", "签名"]):
+                    sections.append(f"• **{tag}**: `{val_clean}`")
+                else:
+                    sections.append(f"• **{tag}**: {val_clean}")
+    else:
+        sections.append(raw_content)
+
+    return header + "\n" + title_line + "\n".join(sections)
+
+
+def _process_dax_section(
+    format_type: str,
+    feishu_separator: str,
+    current_batch: str,
+    current_batch_has_content: bool,
+    batches: list,
+    add_separator: bool = True,
+    max_bytes: int = 4000,
+) -> Tuple[str, bool, list]:
+    """处理每日 DAX 技巧区块"""
+    tip = _get_random_dax_tip()
+    if not tip:
+        return current_batch, current_batch_has_content, batches
+
+    dax_text = _format_dax_tip_text(tip, format_type)
+    if not dax_text:
+        return current_batch, current_batch_has_content, batches
+
+    separator = ""
+    if add_separator and current_batch_has_content:
+        if format_type == "feishu":
+            separator = f"\n{feishu_separator}\n\n"
+        elif format_type == "dingtalk":
+            separator = "\n---\n\n"
+        else:
+            separator = "\n\n"
+
+    section_content = separator + dax_text if current_batch_has_content else dax_text
+    test_content = current_batch + section_content
+
+    if len(test_content.encode("utf-8")) > max_bytes and current_batch_has_content:
+        _safe_append_batch(batches, current_batch, "", max_bytes, "")
+        current_batch = dax_text
+        current_batch_has_content = True
+    else:
+        current_batch = test_content
+        current_batch_has_content = True
 
     return current_batch, current_batch_has_content, batches
 

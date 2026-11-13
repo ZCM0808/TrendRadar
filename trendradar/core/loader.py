@@ -272,7 +272,7 @@ def _load_display_config(config_data: Dict) -> Dict:
     region_order = display.get("region_order", default_region_order)
 
     # 验证 region_order 中的值是否合法
-    valid_regions = {"worldmonitor", "hotlist", "rss", "new_items", "standalone", "ai_analysis", "github"}
+    valid_regions = {"worldmonitor", "hotlist", "rss", "new_items", "standalone", "ai_analysis", "github", "dax"}
     region_order = [r for r in region_order if r in valid_regions]
 
     # 如果过滤后为空，使用默认顺序
@@ -290,7 +290,8 @@ def _load_display_config(config_data: Dict) -> Dict:
             "RSS": regions.get("rss", True),
             "STANDALONE": regions.get("standalone", False),
             "AI_ANALYSIS": regions.get("ai_analysis", True),
-            "GITHUB": regions.get("github", True),
+            "GITHUB": regions.get("github", False),
+            "DAX": regions.get("dax", True),
         },
         # 独立展示区配置
         "STANDALONE": {

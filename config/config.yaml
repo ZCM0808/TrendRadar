@@ -259,7 +259,7 @@ display:
     - rss                                 # 3️⃣ 精选 RSS 订阅（紧凑展示）
     - new_items                           # 4️⃣ 新增热点区域
     - standalone                          # 5️⃣ 独立展示区
-    - github                              # 6️⃣ GitHub 热门项目区域
+    - dax                                 # 6️⃣ 每日 Power BI DAX 技巧精粹
 
   # 推送区域开关（需配合上方 region_order 使用）
   regions:
@@ -274,7 +274,8 @@ display:
                                       # 关闭后跳过分析，但独立展示区不受影响
 
     standalone: false                 # 独立展示区（完整热榜/RSS，不受关键词过滤）
-    github: true                      # GitHub 热门项目区域
+    github: false                     # GitHub 热门项目区域（已关闭）
+    dax: true                         # 每日 Power BI DAX 技巧精粹（true=开启）
 
   # 📋 独立展示区配置
   # 用途：将指定平台的完整热榜/RSS 数据独立提取，不受关键词过滤影响

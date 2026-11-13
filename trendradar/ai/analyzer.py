@@ -17,12 +17,13 @@ from trendradar.ai.prompt_loader import load_prompt_template
 @dataclass
 class AIAnalysisResult:
     """AI 分析结果"""
-    # 新版 5 核心板块
+    # 基础板块 + 个人微观影响
     core_trends: str = ""                # 核心热点与舆情态势
     sentiment_controversy: str = ""      # 舆论风向与争议
     signals: str = ""                    # 异动与弱信号
     rss_insights: str = ""               # RSS 深度洞察
     outlook_strategy: str = ""           # 研判与策略建议
+    personal_impact: str = ""            # 对我的微观具体影响与今日行动
     butterfly_references: List[Dict[str, str]] = field(default_factory=list)  # 蝴蝶效应引用 [{title, url}]
     standalone_summaries: Dict[str, str] = field(default_factory=dict)  # 独立展示区概括 {源ID: 概括}
 
@@ -629,6 +630,7 @@ class AIAnalyzer:
             result.signals = data.get("signals", "")
             result.rss_insights = data.get("rss_insights", "")
             result.outlook_strategy = data.get("outlook_strategy", "")
+            result.personal_impact = data.get("personal_impact", "")
 
             # 解析独立展示区概括
             summaries = data.get("standalone_summaries", {})
