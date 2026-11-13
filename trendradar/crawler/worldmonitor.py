@@ -178,15 +178,12 @@ class WorldMonitorFetcher:
             })
 
         # 5. 核心总体战略研判摘要 (速读)
-        summary = (
-            "全球局势目前处于“霍尔木兹海峡受中东对抗威胁挂红灯、俄乌战线持续胶着、"
-            "黄金及原油高位对冲”的复杂格局。油轮海运受阻风险上升，避险情绪维持中高位。"
-        )
+        summary = "全球宏观核心大宗商品与主要资本市场指数呈现动态博弈，避险与科技资产保持高频联动。"
 
         return {
             "summary": summary,
-            "cii": top_cii,
-            "chokepoints": chokepoints,
+            "cii": [],  # 彻底拔除风险国家 (CII)
+            "chokepoints": [],  # 彻底拔除海上战略咽喉通航状态
             "markets": market_items,
             "news": news_items,
         }

@@ -1305,6 +1305,18 @@ class NewsAnalyzer:
             fetcher = WorldMonitorFetcher(proxy_url=proxy_url, timeout=timeout)
             data = fetcher.fetch_intelligence()
             if data:
+                # 遵从配置动态过滤不需要的维度（如咽喉通道、高危国家）
+                if not wm_config.get("SHOW_CII", False):
+                    data["cii"] = []
+                if not wm_config.get("SHOW_CHOKEPOINTS", False):
+                    data["chokepoints"] = []
+                if not wm_config.get("SHOW_MARKETS", True):
+                    data["markets"] = []
+
+                # 如果过滤后研判摘要包含咽喉/海运冲突，做适度精简或保持核心大宗资产研判
+                if not wm_config.get("SHOW_CHOKEPOINTS", False) and not wm_config.get("SHOW_CII", False):
+                    data["summary"] = "全球宏观核心大宗商品与主要资本市场指数呈现动态博弈，避险与科技资产保持高频联动。"
+
                 cii_count = len(data.get("cii", []))
                 cp_count = len(data.get("chokepoints", []))
                 mkt_count = len(data.get("markets", []))
@@ -2434,7 +2446,7 @@ def main():
         # 统一版本检查（程序版本 + 配置文件版本，只请求一次远程）
         need_update = False
         remote_version = None
-        if version_url:
+        if version_url and config.get("SHOW_VERSION_UPDATE", False):
             need_update, remote_version = check_all_versions(version_url, configs_version_url)
 
         # 复用已加载的配置，避免重复加载

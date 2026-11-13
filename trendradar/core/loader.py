@@ -255,6 +255,9 @@ def _load_worldmonitor_config(config_data: Dict) -> Dict:
         "ENABLED": wm.get("enabled", True),
         "PROXY_URL": wm_proxy_url,
         "TIMEOUT": wm.get("timeout", 15),
+        "SHOW_CII": wm.get("show_cii", False),
+        "SHOW_CHOKEPOINTS": wm.get("show_chokepoints", False),
+        "SHOW_MARKETS": wm.get("show_markets", True),
     }
 
 
