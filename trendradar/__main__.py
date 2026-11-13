@@ -272,8 +272,8 @@ class NewsAnalyzer:
             return False
 
     def _should_open_browser(self) -> bool:
-        """判断是否应该打开浏览器"""
-        return not self.is_github_actions and not self.is_docker_container
+        """判断是否应该打开浏览器（已彻底禁用本地自动弹窗）"""
+        return False
 
     def _setup_proxy(self) -> None:
         """设置代理配置"""
@@ -1927,13 +1927,9 @@ class NewsAnalyzer:
                 worldmonitor_data=worldmonitor_data,
             )
 
-        # 打开浏览器（仅在非容器环境）
-        if self._should_open_browser() and html_file:
-            file_url = "file://" + str(Path(html_file).resolve())
-            print(f"正在打开HTML报告: {file_url}")
-            webbrowser.open(file_url)
-        elif self.is_docker_container and html_file:
-            print(f"HTML报告已生成（Docker环境）: {html_file}")
+        # HTML报告已就绪（已移除自动调用浏览器弹窗逻辑，保持后台静默）
+        if html_file:
+            print(f"HTML报告已生成: {html_file}")
 
         return html_file
 
