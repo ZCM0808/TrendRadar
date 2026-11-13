@@ -2064,51 +2064,146 @@ def _get_random_dax_tip() -> Optional[Dict[str, str]]:
 
 
 def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
-    """格式化 DAX 技巧文本"""
+    """格式化 DAX 技巧文本，遵循移动端窄屏排版与卡片流式设计"""
     import html as html_lib
+    import re
+
     title = tip.get("title", "Power BI DAX 调优技巧")
     raw_content = tip.get("content", "").strip()
 
     is_tg = (format_type == "telegram")
     is_fs = (format_type == "feishu")
 
-    if is_tg:
-        header = "💡 <b>每日 Power BI DAX 技巧精粹</b>\n"
-        title_line = f"🎯 <b>{html_lib.escape(title)}</b>\n"
-    else:
-        header = "💡 **每日 Power BI DAX 技巧精粹**\n"
-        title_line = f"🎯 **{title}**\n"
-
-    sections = []
-    import re
     tags = re.findall(r"\[([^\]]+)\]:", raw_content)
+    parsed: Dict[str, str] = {}
     if tags:
         parts = re.split(r"\[[^\]]+\]:", raw_content)
         for tag, val in zip(tags, parts[1:]):
             val_clean = val.strip()
-            if not val_clean:
-                continue
-            if is_tg:
-                val_escaped = html_lib.escape(val_clean)
-                tag_escaped = html_lib.escape(tag)
-                if any(k in tag for k in ["正例", "反例", "签名"]):
-                    sections.append(f"• <b>{tag_escaped}</b>: <code>{val_escaped}</code>")
-                else:
-                    sections.append(f"• <b>{tag_escaped}</b>: {val_escaped}")
-            elif is_fs:
-                if any(k in tag for k in ["正例", "反例", "签名"]):
-                    sections.append(f"• **{tag}**: `{val_clean}`")
-                else:
-                    sections.append(f"• **{tag}**: {val_clean}")
-            else:
-                if any(k in tag for k in ["正例", "反例", "签名"]):
-                    sections.append(f"• **{tag}**: `{val_clean}`")
-                else:
-                    sections.append(f"• **{tag}**: {val_clean}")
-    else:
-        sections.append(html_lib.escape(raw_content) if is_tg else raw_content)
+            if val_clean:
+                parsed[tag] = val_clean
 
-    return header + "\n" + title_line + "\n".join(sections)
+    if is_tg:
+        # Telegram HTML 移动端优雅卡片排版
+        lines = [
+            "💡 <b>每日 Power BI DAX 技巧精粹</b>",
+            f"🎯 <b>{html_lib.escape(title)}</b>",
+            "",
+        ]
+
+        if parsed:
+            # 基础属性字段（单列紧凑）
+            meta_items = []
+            for tag in ["所属领域", "返回值类型"]:
+                if tag in parsed:
+                    meta_items.append(f"• <b>{html_lib.escape(tag)}</b>: {html_lib.escape(parsed[tag])}")
+            if meta_items:
+                lines.extend(meta_items)
+                lines.append("")
+
+            # 签名与语法结构（独立代码块）
+            if "函数签名" in parsed:
+                lines.append("• <b>函数签名 / 语法</b>:")
+                sig = html_lib.escape(parsed["函数签名"])
+                lines.append(f"<pre><code class=\"language-dax\">{sig}</code></pre>")
+                lines.append("")
+
+            # 底层机制与执行逻辑
+            if "底层机制与执行逻辑" in parsed:
+                lines.append("• <b>底层机制与执行逻辑</b>:")
+                lines.append(html_lib.escape(parsed["底层机制与执行逻辑"]))
+                lines.append("")
+
+            # 官方推荐正例（独立代码块）
+            if "官方推荐正例" in parsed:
+                lines.append("• <b>官方推荐正例 (Best Practice)</b>:")
+                pos = html_lib.escape(parsed["官方推荐正例"])
+                lines.append(f"<pre><code class=\"language-dax\">{pos}</code></pre>")
+                lines.append("")
+
+            # 避坑防错反例
+            if "避坑防错反例" in parsed:
+                lines.append("• <b>避坑防错与避障要点</b>:")
+                neg = html_lib.escape(parsed["避坑防错反例"])
+                # 若反例为纯代码/表达式，则渲染代码块，否则作为提示文本
+                if any(sym in neg for sym in ["=", "(", ")", "[", "]"]):
+                    lines.append(f"<pre><code class=\"language-dax\">{neg}</code></pre>")
+                else:
+                    lines.append(neg)
+                lines.append("")
+
+            # 其他未列出的 tag 保底输出
+            handled = {"函数名称", "所属领域", "返回值类型", "函数签名", "底层机制与执行逻辑", "官方推荐正例", "避坑防错反例"}
+            extra = []
+            for tag, val in parsed.items():
+                if tag not in handled:
+                    extra.append(f"• <b>{html_lib.escape(tag)}</b>:\n{html_lib.escape(val)}")
+            if extra:
+                lines.extend(extra)
+                lines.append("")
+
+        else:
+            lines.append(html_lib.escape(raw_content))
+
+        # 去除末尾空行
+        while lines and lines[-1] == "":
+            lines.pop()
+
+        return "\n".join(lines)
+
+    else:
+        # Markdown / 飞书 格式
+        lines = [
+            "💡 **每日 Power BI DAX 技巧精粹**",
+            f"🎯 **{title}**",
+            "",
+        ]
+
+        if parsed:
+            meta_items = []
+            for tag in ["所属领域", "返回值类型"]:
+                if tag in parsed:
+                    meta_items.append(f"• **{tag}**: {parsed[tag]}")
+            if meta_items:
+                lines.extend(meta_items)
+                lines.append("")
+
+            if "函数签名" in parsed:
+                lines.append("• **函数签名 / 语法**:")
+                lines.append(f"```dax\n{parsed['函数签名']}\n```")
+                lines.append("")
+
+            if "底层机制与执行逻辑" in parsed:
+                lines.append("• **底层机制与执行逻辑**:")
+                lines.append(parsed["底层机制与执行逻辑"])
+                lines.append("")
+
+            if "官方推荐正例" in parsed:
+                lines.append("• **官方推荐正例 (Best Practice)**:")
+                lines.append(f"```dax\n{parsed['官方推荐正例']}\n```")
+                lines.append("")
+
+            if "避坑防错反例" in parsed:
+                lines.append("• **避坑防错与避障要点**:")
+                neg = parsed["避坑防错反例"]
+                if any(sym in neg for sym in ["=", "(", ")", "[", "]"]):
+                    lines.append(f"```dax\n{neg}\n```")
+                else:
+                    lines.append(neg)
+                lines.append("")
+
+            handled = {"函数名称", "所属领域", "返回值类型", "函数签名", "底层机制与执行逻辑", "官方推荐正例", "避坑防错反例"}
+            for tag, val in parsed.items():
+                if tag not in handled:
+                    lines.append(f"• **{tag}**:\n{val}\n")
+
+        else:
+            lines.append(raw_content)
+
+        while lines and lines[-1] == "":
+            lines.pop()
+
+        return "\n".join(lines)
 
 
 def _process_dax_section(
