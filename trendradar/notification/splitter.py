@@ -2101,11 +2101,11 @@ def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
                 lines.extend(meta_items)
                 lines.append("")
 
-            # 签名与语法结构（独立代码块，使用纯 pre 避免客户端语法着色过暗/偏红）
+            # 签名与语法结构（Telegram 官方标准 pre code 容器）
             if "函数签名" in parsed:
                 lines.append("• <b>函数签名 / 语法</b>:")
                 sig = html_lib.escape(parsed["函数签名"])
-                lines.append(f"<pre>{sig}</pre>")
+                lines.append(f"<pre><code>{sig}</code></pre>")
                 lines.append("")
 
             # 底层机制与执行逻辑
@@ -2114,20 +2114,20 @@ def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
                 lines.append(html_lib.escape(parsed["底层机制与执行逻辑"]))
                 lines.append("")
 
-            # 官方推荐正例（独立代码块）
+            # 官方推荐正例（Telegram 官方标准 pre code 容器）
             if "官方推荐正例" in parsed:
                 lines.append("• <b>官方推荐正例 (Best Practice)</b>:")
                 pos = html_lib.escape(parsed["官方推荐正例"])
-                lines.append(f"<pre>{pos}</pre>")
+                lines.append(f"<pre><code>{pos}</code></pre>")
                 lines.append("")
 
             # 避坑防错反例
             if "避坑防错反例" in parsed:
                 lines.append("• <b>避坑防错与避障要点</b>:")
                 neg = html_lib.escape(parsed["避坑防错反例"])
-                # 若反例为纯代码/表达式，则渲染代码块，否则作为提示文本
+                # 若反例为纯代码/表达式，则渲染标准代码容器，否则作为提示文本
                 if any(sym in neg for sym in ["=", "(", ")", "[", "]"]):
-                    lines.append(f"<pre>{neg}</pre>")
+                    lines.append(f"<pre><code>{neg}</code></pre>")
                 else:
                     lines.append(neg)
                 lines.append("")
