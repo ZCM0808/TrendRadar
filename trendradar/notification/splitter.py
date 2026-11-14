@@ -2042,7 +2042,7 @@ def _process_github_section(
 # === 每日 Power BI DAX 技巧精粹 ===
 
 def _get_random_dax_tip() -> Optional[Dict[str, str]]:
-    """从 dax_tips.json 随机抽取一个 Power BI DAX 实战技巧"""
+    """从 dax_tips.json 抽取一个 Power BI DAX 实战技巧（70% 权重倾斜企业实战案例，30% 基础函数）"""
     import os, json, random
     possible_paths = [
         os.path.join(os.path.dirname(__file__), "..", "data", "dax_tips.json"),
@@ -2055,8 +2055,16 @@ def _get_random_dax_tip() -> Optional[Dict[str, str]]:
             try:
                 with open(norm_p, "r", encoding="utf-8") as f:
                     tips = json.load(f)
-                    if tips:
-                        return random.choice(tips)
+                    if not tips:
+                        return None
+                    scenarios = [t for t in tips if not t.get("title", "").startswith("DAX 函数")]
+                    functions = [t for t in tips if t.get("title", "").startswith("DAX 函数")]
+                    # 70% 概率抽选企业级实战场景卡，30% 抽选官方标准函数卡
+                    if scenarios and (not functions or random.random() < 0.7):
+                        return random.choice(scenarios)
+                    elif functions:
+                        return random.choice(functions)
+                    return random.choice(tips)
             except Exception as e:
                 print(f"[DAX] 读取技巧库异常: {e}")
                 return None
@@ -2083,6 +2091,16 @@ def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
             if val_clean:
                 parsed[tag] = val_clean
 
+    # 定义包含纯代码/公式的业务标签集合
+    code_like_tags = {
+        "函数签名",
+        "官方推荐正例",
+        "生产级 DAX 实现",
+        "生产级 DAX 计算项 (Calculation Items)",
+        "优化重构对比",
+        "DAX 度量值设计准则",
+    }
+
     if is_tg:
         # Telegram HTML 移动端优雅卡片排版
         lines = [
@@ -2092,51 +2110,69 @@ def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
         ]
 
         if parsed:
-            # 基础属性字段（单列紧凑）
+            # 1. 基础属性与核心函数组合（单列紧凑）
             meta_items = []
-            for tag in ["所属领域", "返回值类型"]:
+            for tag in ["所属领域", "返回值类型", "核心函数组合"]:
                 if tag in parsed:
                     meta_items.append(f"• <b>{html_lib.escape(tag)}</b>: {html_lib.escape(parsed[tag])}")
             if meta_items:
                 lines.extend(meta_items)
                 lines.append("")
 
-            # 签名与语法结构（Telegram 官方标准 pre code 容器）
+            # 2. 语法签名
             if "函数签名" in parsed:
                 lines.append("• <b>函数签名 / 语法</b>:")
                 sig = html_lib.escape(parsed["函数签名"])
                 lines.append(f"<pre><code>{sig}</code></pre>")
                 lines.append("")
 
-            # 底层机制与执行逻辑
-            if "底层机制与执行逻辑" in parsed:
-                lines.append("• <b>底层机制与执行逻辑</b>:")
-                lines.append(html_lib.escape(parsed["底层机制与执行逻辑"]))
-                lines.append("")
+            # 3. 痛点背景 / 机制逻辑 / 根因分析
+            for tag in ["业务痛点与应用背景", "典型根因与反模式", "底层机制与执行逻辑", "核心机制与 SELECTEDMEASURE", "底层命中机制", "生产级双模式架构"]:
+                if tag in parsed:
+                    lines.append(f"• <b>{html_lib.escape(tag)}</b>:")
+                    lines.append(html_lib.escape(parsed[tag]))
+                    lines.append("")
 
-            # 官方推荐正例（Telegram 官方标准 pre code 容器）
-            if "官方推荐正例" in parsed:
-                lines.append("• <b>官方推荐正例 (Best Practice)</b>:")
-                pos = html_lib.escape(parsed["官方推荐正例"])
-                lines.append(f"<pre><code>{pos}</code></pre>")
-                lines.append("")
+            # 4. 生产级 DAX 代码实现与正例
+            for tag in ["生产级 DAX 实现", "生产级 DAX 计算项 (Calculation Items)", "优化重构对比", "官方推荐正例", "DAX 度量值设计准则"]:
+                if tag in parsed:
+                    label = "官方推荐正例 (Best Practice)" if tag == "官方推荐正例" else tag
+                    lines.append(f"• <b>{html_lib.escape(label)}</b>:")
+                    code_val = html_lib.escape(parsed[tag])
+                    lines.append(f"<pre><code>{code_val}</code></pre>")
+                    lines.append("")
 
-            # 避坑防错反例
-            if "避坑防错反例" in parsed:
-                lines.append("• <b>避坑防错与避障要点</b>:")
-                neg = html_lib.escape(parsed["避坑防错反例"])
-                # 若反例为纯代码/表达式，则渲染标准代码容器，否则作为提示文本
-                if any(sym in neg for sym in ["=", "(", ")", "[", "]"]):
-                    lines.append(f"<pre><code>{neg}</code></pre>")
-                else:
-                    lines.append(neg)
-                lines.append("")
+            # 5. 避坑防错与避障要点
+            for tag in ["避坑防错反例", "避坑铁律", "底层优化与避坑"]:
+                if tag in parsed:
+                    lines.append(f"• <b>{html_lib.escape(tag)}</b>:")
+                    neg = html_lib.escape(parsed[tag])
+                    if any(sym in neg for sym in ["=", "(", ")", "[", "]", "--"]):
+                        lines.append(f"<pre><code>{neg}</code></pre>")
+                    else:
+                        lines.append(neg)
+                    lines.append("")
 
-            # 其他未列出的 tag 保底输出
-            handled = {"函数名称", "所属领域", "返回值类型", "函数签名", "底层机制与执行逻辑", "官方推荐正例", "避坑防错反例"}
+            # 6. 收益与优势
+            for tag in ["性能收益", "架构收益", "性能与架构优势"]:
+                if tag in parsed:
+                    lines.append(f"• <b>{html_lib.escape(tag)}</b>:")
+                    lines.append(html_lib.escape(parsed[tag]))
+                    lines.append("")
+
+            # 7. 其他未列出的 tag 保底输出
+            known_tags = {
+                "函数名称", "所属领域", "返回值类型", "核心函数组合",
+                "函数签名", "业务痛点与应用背景", "典型根因与反模式",
+                "底层机制与执行逻辑", "核心机制与 SELECTEDMEASURE",
+                "底层命中机制", "生产级双模式架构", "生产级 DAX 实现",
+                "生产级 DAX 计算项 (Calculation Items)", "优化重构对比",
+                "官方推荐正例", "DAX 度量值设计准则", "避坑防错反例",
+                "避坑铁律", "底层优化与避坑", "性能收益", "架构收益", "性能与架构优势"
+            }
             extra = []
             for tag, val in parsed.items():
-                if tag not in handled:
+                if tag not in known_tags:
                     extra.append(f"• <b>{html_lib.escape(tag)}</b>:\n{html_lib.escape(val)}")
             if extra:
                 lines.extend(extra)
@@ -2161,7 +2197,7 @@ def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
 
         if parsed:
             meta_items = []
-            for tag in ["所属领域", "返回值类型"]:
+            for tag in ["所属领域", "返回值类型", "核心函数组合"]:
                 if tag in parsed:
                     meta_items.append(f"• **{tag}**: {parsed[tag]}")
             if meta_items:
@@ -2173,28 +2209,42 @@ def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
                 lines.append(f"```dax\n{parsed['函数签名']}\n```")
                 lines.append("")
 
-            if "底层机制与执行逻辑" in parsed:
-                lines.append("• **底层机制与执行逻辑**:")
-                lines.append(parsed["底层机制与执行逻辑"])
-                lines.append("")
+            for tag in ["业务痛点与应用背景", "典型根因与反模式", "底层机制与执行逻辑", "核心机制与 SELECTEDMEASURE", "底层命中机制", "生产级双模式架构"]:
+                if tag in parsed:
+                    lines.append(f"• **{tag}**:\n{parsed[tag]}\n")
 
-            if "官方推荐正例" in parsed:
-                lines.append("• **官方推荐正例 (Best Practice)**:")
-                lines.append(f"```dax\n{parsed['官方推荐正例']}\n```")
-                lines.append("")
+            for tag in ["生产级 DAX 实现", "生产级 DAX 计算项 (Calculation Items)", "优化重构对比", "官方推荐正例", "DAX 度量值设计准则"]:
+                if tag in parsed:
+                    label = "官方推荐正例 (Best Practice)" if tag == "官方推荐正例" else tag
+                    lines.append(f"• **{label}**:")
+                    lines.append(f"```dax\n{parsed[tag]}\n```")
+                    lines.append("")
 
-            if "避坑防错反例" in parsed:
-                lines.append("• **避坑防错与避障要点**:")
-                neg = parsed["避坑防错反例"]
-                if any(sym in neg for sym in ["=", "(", ")", "[", "]"]):
-                    lines.append(f"```dax\n{neg}\n```")
-                else:
-                    lines.append(neg)
-                lines.append("")
+            for tag in ["避坑防错反例", "避坑铁律", "底层优化与避坑"]:
+                if tag in parsed:
+                    lines.append(f"• **{tag}**:")
+                    neg = parsed[tag]
+                    if any(sym in neg for sym in ["=", "(", ")", "[", "]", "--"]):
+                        lines.append(f"```dax\n{neg}\n```")
+                    else:
+                        lines.append(neg)
+                    lines.append("")
 
-            handled = {"函数名称", "所属领域", "返回值类型", "函数签名", "底层机制与执行逻辑", "官方推荐正例", "避坑防错反例"}
+            for tag in ["性能收益", "架构收益", "性能与架构优势"]:
+                if tag in parsed:
+                    lines.append(f"• **{tag}**:\n{parsed[tag]}\n")
+
+            known_tags = {
+                "函数名称", "所属领域", "返回值类型", "核心函数组合",
+                "函数签名", "业务痛点与应用背景", "典型根因与反模式",
+                "底层机制与执行逻辑", "核心机制与 SELECTEDMEASURE",
+                "底层命中机制", "生产级双模式架构", "生产级 DAX 实现",
+                "生产级 DAX 计算项 (Calculation Items)", "优化重构对比",
+                "官方推荐正例", "DAX 度量值设计准则", "避坑防错反例",
+                "避坑铁律", "底层优化与避坑", "性能收益", "架构收益", "性能与架构优势"
+            }
             for tag, val in parsed.items():
-                if tag not in handled:
+                if tag not in known_tags:
                     lines.append(f"• **{tag}**:\n{val}\n")
 
         else:
