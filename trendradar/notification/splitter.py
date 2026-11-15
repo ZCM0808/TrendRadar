@@ -2123,7 +2123,7 @@ def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
             if "函数签名" in parsed:
                 lines.append("• <b>函数签名 / 语法</b>:")
                 sig = html_lib.escape(parsed["函数签名"])
-                lines.append(f"<pre><code>{sig}</code></pre>")
+                lines.append(f'<pre><code class="language-sql">{sig}</code></pre>')
                 lines.append("")
 
             # 3. 痛点背景 / 机制逻辑 / 根因分析
@@ -2139,7 +2139,7 @@ def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
                     label = "官方推荐正例 (Best Practice)" if tag == "官方推荐正例" else tag
                     lines.append(f"• <b>{html_lib.escape(label)}</b>:")
                     code_val = html_lib.escape(parsed[tag])
-                    lines.append(f"<pre><code>{code_val}</code></pre>")
+                    lines.append(f'<pre><code class="language-sql">{code_val}</code></pre>')
                     lines.append("")
 
             # 5. 避坑防错与避障要点
@@ -2148,7 +2148,7 @@ def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
                     lines.append(f"• <b>{html_lib.escape(tag)}</b>:")
                     neg = html_lib.escape(parsed[tag])
                     if any(sym in neg for sym in ["=", "(", ")", "[", "]", "--"]):
-                        lines.append(f"<pre><code>{neg}</code></pre>")
+                        lines.append(f'<pre><code class="language-sql">{neg}</code></pre>')
                     else:
                         lines.append(neg)
                     lines.append("")
