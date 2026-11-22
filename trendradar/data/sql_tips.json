@@ -1090,5 +1090,397 @@
     "scenario": "【语法】EXEC sys.sp_executesql @stmt, @params, @p1 = @v1;\n【作用】强类型参数化执行动态 SQL，彻底防御 SQL 注入并支持计划缓存复用。",
     "sql": "DECLARE @s NVARCHAR(MAX) = N'SELECT * FROM dbo.' + QUOTENAME(@tbl) + N' WHERE ID = @id';\nEXEC sys.sp_executesql @s, N'@id INT', @id = 42;",
     "pitfall": "表名/列名不能用 @参数 替代，必须用 QUOTENAME() 校验包裹后再拼接。"
+  },
+  {
+    "title": "SQL 核心语法：SELECT",
+    "category": "语法字典 · 基础DQL关键字",
+    "keywords": [
+      "SELECT",
+      "基础DQL关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT [DISTINCT] [TOP (N)] col1 [AS alias], expr FROM tbl;\n【作用】指定查询输出列、表达式或常量；逻辑执行顺序在 FROM/WHERE/GROUP BY/HAVING 之后、ORDER BY 之前。",
+    "sql": "SELECT OrderID, CustomerID, Amount * 1.13 AS TaxInclAmt\nFROM dbo.FactOrders;",
+    "pitfall": "生产代码严禁 SELECT *，会导致无法走覆盖索引、网络 I/O 浪费以及下游表结构变更时静默错列。"
+  },
+  {
+    "title": "SQL 核心语法：FROM",
+    "category": "语法字典 · 基础DQL关键字",
+    "keywords": [
+      "FROM",
+      "基础DQL关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】FROM schema.table [AS alias]\n【作用】指定查询的数据源（表、视图、CTE、派生表或表值函数），是整条 SQL 逻辑执行顺序的第一步。",
+    "sql": "SELECT o.OrderID FROM dbo.FactOrders AS o;",
+    "pitfall": "始终显式写架构前缀（如 dbo.），避免 SQL Server 解析对象名时额外扫描默认 Schema 导致计划缓存分裂。"
+  },
+  {
+    "title": "SQL 核心语法：AS (别名)",
+    "category": "语法字典 · 基础DQL关键字",
+    "keywords": [
+      "AS (别名)",
+      "基础DQL关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】col AS alias / FROM tbl AS t\n【作用】为输出列、计算表达式或表指定别名，提升可读性并消除多表同名列歧义。",
+    "sql": "SELECT c.CustomerName AS CustName, SUM(o.Amount) AS TotalSales\nFROM dbo.FactOrders AS o\nJOIN dbo.DimCustomer AS c ON o.CustomerID = c.CustomerID\nGROUP BY c.CustomerName;",
+    "pitfall": "SELECT 中定义的列别名不能在同级 WHERE/GROUP BY/HAVING 中引用（因执行顺序在 SELECT 之前），只能在 ORDER BY 中引用。"
+  },
+  {
+    "title": "SQL 核心语法：AND / OR / NOT",
+    "category": "语法字典 · 逻辑运算符",
+    "keywords": [
+      "AND / OR / NOT",
+      "逻辑运算符",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】WHERE cond1 AND (cond2 OR NOT cond3)\n【作用】布尔逻辑组合运算符；优先级：NOT > AND > OR。",
+    "sql": "SELECT OrderID FROM dbo.FactOrders\nWHERE OrderStatus = 'Paid' AND (Region = N'华东' OR Amount >= 10000);",
+    "pitfall": "混用 AND 与 OR 时必须显式加括号，否则 AND 优先结合极易导致逻辑漏洞与越权数据泄露。"
+  },
+  {
+    "title": "SQL 核心语法：BETWEEN ... AND ...",
+    "category": "语法字典 · 逻辑运算符",
+    "keywords": [
+      "BETWEEN ... AND ...",
+      "逻辑运算符",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】WHERE col BETWEEN low AND high\n【作用】闭区间范围判断（等价于 col >= low AND col <= high，包含两端边界）。",
+    "sql": "SELECT OrderID FROM dbo.FactOrders WHERE Amount BETWEEN 100 AND 500;",
+    "pitfall": "DATETIME 带时分秒时严禁对日期用 BETWEEN '2026-11-01' AND '2026-11-30'（会漏掉 30 日 00:00:01 之后全部数据），必须用 >= 和 < 次日！"
+  },
+  {
+    "title": "SQL 核心语法：LIKE",
+    "category": "语法字典 · 逻辑运算符",
+    "keywords": [
+      "LIKE",
+      "逻辑运算符",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】WHERE col LIKE N'前缀%'\n【作用】模糊模式匹配：% 匹配任意长度字符，_ 匹配单个字符，[a-z] 匹配字符集。",
+    "sql": "SELECT CustomerName FROM dbo.DimCustomer WHERE CustomerName LIKE N'上海%';",
+    "pitfall": "前导通配符 LIKE N'%关键词%' 必然导致索引失效（全表扫描）；右模糊 LIKE N'前缀%' 仍可走 Index Seek。"
+  },
+  {
+    "title": "SQL 核心语法：IS NULL / IS NOT NULL",
+    "category": "语法字典 · 逻辑运算符",
+    "keywords": [
+      "IS NULL / IS NOT NULL",
+      "逻辑运算符",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】WHERE col IS [NOT] NULL\n【作用】判断列值是否为空；SQL 中 NULL 代表“未知”，任何 = NULL 或 <> NULL 比较结果恒为 UNKNOWN。",
+    "sql": "SELECT OrderID FROM dbo.FactOrders WHERE ShipDate IS NULL;",
+    "pitfall": "严禁写 WHERE ShipDate = NULL，永远返回 0 行！必须用 IS NULL / IS NOT NULL。"
+  },
+  {
+    "title": "SQL 核心语法：CAST()",
+    "category": "语法字典 · 类型转换独立函数",
+    "keywords": [
+      "CAST()",
+      "类型转换独立函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】CAST(expression AS data_type [(length)])\n【作用】ANSI 标准显式类型转换函数，跨数据库平台兼容性最好。",
+    "sql": "SELECT CAST(Amount AS DECIMAL(18, 2)) AS Amt, CAST(OrderDate AS DATE) AS Dt\nFROM dbo.FactOrders;",
+    "pitfall": "转换非法字符串时会直接抛错中断查询；清洗脏数据应改用 TRY_CAST()。"
+  },
+  {
+    "title": "SQL 核心语法：CONVERT()",
+    "category": "语法字典 · 类型转换独立函数",
+    "keywords": [
+      "CONVERT()",
+      "类型转换独立函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】CONVERT(data_type [(length)], expression [, style])\n【作用】T-SQL 专属类型转换函数，支持第 3 参数 style 格式化日期/时间（如 23=yyyy-MM-dd, 112=yyyyMMdd, 120=yyyy-MM-dd HH:mm:ss）。",
+    "sql": "SELECT CONVERT(VARCHAR(10), GETDATE(), 23) AS IsoDate,\n       CONVERT(VARCHAR(8), GETDATE(), 112) AS DateKey;",
+    "pitfall": "比 FORMAT() 快 10 倍以上，是 SQL Server 高性能日期格式化首选。"
+  },
+  {
+    "title": "SQL 核心语法：TRY_CAST() / TRY_CONVERT()",
+    "category": "语法字典 · 类型转换独立函数",
+    "keywords": [
+      "TRY_CAST() / TRY_CONVERT()",
+      "类型转换独立函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】TRY_CAST(expr AS type) / TRY_CONVERT(type, expr, style)\n【作用】安全类型转换，遇到无法转换的脏数据时返回 NULL 而不抛出异常。",
+    "sql": "SELECT TRY_CAST(N'123.45' AS DECIMAL(10,2)) AS ValidNum, TRY_CAST(N'N/A' AS INT) AS BadNum;",
+    "pitfall": "ETL 清洗外部文本数据时必须用 TRY_ 前缀函数，配合 COALESCE 赋默认值。"
+  },
+  {
+    "title": "SQL 核心语法：INSERT INTO / VALUES",
+    "category": "语法字典 · DML核心关键字",
+    "keywords": [
+      "INSERT INTO / VALUES",
+      "DML核心关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】INSERT INTO dbo.tbl (col1, col2) VALUES (v1, v2), (v3, v4);\n【作用】向目标表插入单行、多行或 INSERT INTO ... SELECT 批量写入查询结果。",
+    "sql": "INSERT INTO dbo.DimTag (TagName, CreatedAt)\nVALUES (N'SQL', SYSUTCDATETIME()), (N'DAX', SYSUTCDATETIME());",
+    "pitfall": "始终显式列出目标列名，避免表新增列后导致隐式按位置插入报错或错位。"
+  },
+  {
+    "title": "SQL 核心语法：SELECT INTO",
+    "category": "语法字典 · DML核心关键字",
+    "keywords": [
+      "SELECT INTO",
+      "DML核心关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT cols INTO #TempTable FROM dbo.SourceTable WHERE ...;\n【作用】自动按查询结果集结构建表并一次性批量写入（常用于快速创建 #Temp 临时表）。",
+    "sql": "SELECT OrderID, CustomerID, Amount\nINTO #HighValueOrders\nFROM dbo.FactOrders\nWHERE Amount >= 50000;",
+    "pitfall": "SELECT INTO 不会复制源表的索引、主键与约束，且在生成期间会短暂持有系统目录锁。"
+  },
+  {
+    "title": "SQL 核心语法：UPDATE ... FROM",
+    "category": "语法字典 · DML核心关键字",
+    "keywords": [
+      "UPDATE ... FROM",
+      "DML核心关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】UPDATE t SET t.col = s.col FROM dbo.Tgt t INNER JOIN dbo.Src s ON t.ID = s.ID;\n【作用】基于另一张表的关联结果批量更新目标表（T-SQL 常用关联更新语法）。",
+    "sql": "UPDATE o\nSET o.Region = c.Region\nFROM dbo.FactOrders o\nINNER JOIN dbo.DimCustomer c ON o.CustomerID = c.CustomerID\nWHERE o.Region IS NULL;",
+    "pitfall": "若源表 s 存在多条匹配行，UPDATE FROM 会静默随机覆盖且不报错！更新前务必确保源表关联键唯一。"
+  },
+  {
+    "title": "SQL 核心语法：DELETE",
+    "category": "语法字典 · DML核心关键字",
+    "keywords": [
+      "DELETE",
+      "DML核心关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】DELETE FROM dbo.tbl WHERE condition;\n【作用】按条件逐行删除记录并写入完整事务日志，支持触发器与外键级联。",
+    "sql": "DELETE FROM dbo.StgImport WHERE BatchID = @BatchID;",
+    "pitfall": "执行 DELETE 前务必先用同等 WHERE 跑一遍 SELECT COUNT(*) 核验影响行数；删千万行必须分批 DELETE TOP (5000)。"
+  },
+  {
+    "title": "SQL 核心语法：CREATE / ALTER / DROP TABLE",
+    "category": "语法字典 · DDL核心关键字",
+    "keywords": [
+      "CREATE / ALTER / DROP TABLE",
+      "DDL核心关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】CREATE TABLE dbo.T (ID INT IDENTITY(1,1) PRIMARY KEY, Name NVARCHAR(100) NOT NULL);\n【作用】创建、修改表结构（加列/改类型/加约束）或永久删除整张表及其数据与索引。",
+    "sql": "CREATE TABLE dbo.DimCategory (\n    CategoryID INT IDENTITY(1,1) NOT NULL PRIMARY KEY,\n    CategoryName NVARCHAR(100) NOT NULL UNIQUE\n);",
+    "pitfall": "DROP TABLE 会立即丢失数据与权限；SQL Server 2016+ 支持 DROP TABLE IF EXISTS dbo.T 防报错。"
+  },
+  {
+    "title": "SQL 核心语法：CREATE OR ALTER VIEW",
+    "category": "语法字典 · DDL核心关键字",
+    "keywords": [
+      "CREATE OR ALTER VIEW",
+      "DDL核心关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】CREATE OR ALTER VIEW dbo.vw_Name AS SELECT ...;\n【作用】创建或原地更新虚拟视图，封装复杂多表关联逻辑供 Power BI / 报表统一消费。",
+    "sql": "CREATE OR ALTER VIEW dbo.vw_PaidOrders AS\nSELECT OrderID, CustomerID, OrderDate, Amount\nFROM dbo.FactOrders\nWHERE OrderStatus = 'Paid';",
+    "pitfall": "避免多层嵌套视图（视图套视图套视图），会让优化器难以简化执行计划导致严重性能退化。"
+  },
+  {
+    "title": "SQL 核心语法：CREATE OR ALTER PROCEDURE",
+    "category": "语法字典 · DDL核心关键字",
+    "keywords": [
+      "CREATE OR ALTER PROCEDURE",
+      "DDL核心关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】CREATE OR ALTER PROCEDURE dbo.usp_Name @p1 INT AS BEGIN SET NOCOUNT ON; ... END;\n【作用】创建或更新存储过程，封装业务逻辑、事务与参数化查询。",
+    "sql": "CREATE OR ALTER PROCEDURE dbo.usp_GetTopOrders @TopN INT = 10 AS\nBEGIN\n    SET NOCOUNT ON;\n    SELECT TOP (@TopN) OrderID, Amount FROM dbo.FactOrders ORDER BY Amount DESC;\nEND;",
+    "pitfall": "存储过程开头务必加 SET NOCOUNT ON，避免向客户端/驱动返回多余的“受影响行数”网络包。"
+  },
+  {
+    "title": "SQL 核心语法：PRIMARY KEY / FOREIGN KEY / UNIQUE / CHECK",
+    "category": "语法字典 · DDL约束关键字",
+    "keywords": [
+      "PRIMARY KEY / FOREIGN KEY / UNIQUE / CHECK",
+      "DDL约束关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】CONSTRAINT PK_T PRIMARY KEY (ID), CONSTRAINT CK_Amt CHECK (Amount >= 0)\n【作用】表级数据完整性约束：主键唯一非空、外键维护引用完整、UNIQUE 防重复、CHECK 校验业务域。",
+    "sql": "ALTER TABLE dbo.FactOrders\nADD CONSTRAINT CK_FactOrders_Amount CHECK (Amount >= 0);",
+    "pitfall": "受信任的外键与 CHECK 约束（WITH CHECK）不仅保证数据质量，还能帮助 SQL Server 优化器在执行计划中做表消除（Join Elimination）！"
+  },
+  {
+    "title": "SQL 核心语法：IDENTITY & SCOPE_IDENTITY()",
+    "category": "语法字典 · 标识列与主键",
+    "keywords": [
+      "IDENTITY & SCOPE_IDENTITY()",
+      "标识列与主键",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】ID INT IDENTITY(1,1) / SELECT SCOPE_IDENTITY();\n【作用】自增主键列；SCOPE_IDENTITY() 安全获取当前会话、当前作用域刚刚插入生成的自增 ID。",
+    "sql": "INSERT INTO dbo.DimCustomer (CustomerName) VALUES (N'新客户');\nDECLARE @NewID INT = SCOPE_IDENTITY();",
+    "pitfall": "严禁使用 @@IDENTITY（会被表上的触发器插入污染返回错 ID），也不要用 IDENT_CURRENT（受其他并发会话干扰）。"
+  },
+  {
+    "title": "SQL 核心语法：GETDATE() / SYSUTCDATETIME()",
+    "category": "语法字典 · 日期时间函数",
+    "keywords": [
+      "GETDATE() / SYSUTCDATETIME()",
+      "日期时间函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】GETDATE() / SYSDATETIME() / SYSUTCDATETIME()\n【作用】获取当前服务器本地时间或高精度 UTC 时间（DATETIME2(7)）。",
+    "sql": "SELECT GETDATE() AS LocalTime, SYSUTCDATETIME() AS UtcPreciseTime;",
+    "pitfall": "跨国/云端系统落库时间一律优先存 SYSUTCDATETIME()（UTC），展示层再用 AT TIME ZONE 转本地时区。"
+  },
+  {
+    "title": "SQL 核心语法：DATEPART() / DATENAME() / YEAR / MONTH / DAY",
+    "category": "语法字典 · 日期时间函数",
+    "keywords": [
+      "DATEPART() / DATENAME() / YEAR / MONTH / DAY",
+      "日期时间函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】DATEPART(WEEKDAY, dt) / DATENAME(MONTH, dt) / YEAR(dt)\n【作用】提取日期中的年、月、日、季度、星期或周数（DATEPART 返回整数，DATENAME 返回字符串）。",
+    "sql": "SELECT YEAR(OrderDate) AS Yr, DATEPART(QUARTER, OrderDate) AS Qtr, DATENAME(WEEKDAY, OrderDate) AS WkName\nFROM dbo.FactOrders;",
+    "pitfall": "DATEPART(WEEKDAY, dt) 受 SET DATEFIRST 设置影响（美式默认周日=1，中式习惯周一=1），涉及周统计建议查日期维表。"
+  },
+  {
+    "title": "SQL 核心语法：LEN() vs DATALENGTH()",
+    "category": "语法字典 · 字符串函数",
+    "keywords": [
+      "LEN() vs DATALENGTH()",
+      "字符串函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】LEN(str) / DATALENGTH(expr)\n【作用】LEN 返回字符数（自动忽略尾随空格！）；DATALENGTH 返回实际占用字节数（含尾随空格，NVARCHAR 每字符占 2 字节）。",
+    "sql": "SELECT LEN(N'ABC  ') AS CharLen, DATALENGTH(N'ABC  ') AS ByteLen;",
+    "pitfall": "排查隐藏尾随空格或超长字段截断时，必须用 DATALENGTH() 而非 LEN()。"
+  },
+  {
+    "title": "SQL 核心语法：LEFT() / RIGHT() / TRIM() / UPPER() / LOWER() / REPLACE()",
+    "category": "语法字典 · 字符串函数",
+    "keywords": [
+      "LEFT() / RIGHT() / TRIM() / UPPER() / LOWER() / REPLACE()",
+      "字符串函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】LEFT(s, n) / RIGHT(s, n) / TRIM(s) / REPLACE(s, old, new)\n【作用】高频文本截取、去首尾空白、大小写统一与子串替换函数。",
+    "sql": "SELECT UPPER(TRIM(SKU)) AS CleanSKU, REPLACE(Phone, '-', '') AS CleanPhone\nFROM dbo.DimProduct;",
+    "pitfall": "SQL Server 2017+ 直接用 TRIM(s) 替代旧版 LTRIM(RTRIM(s))，且支持指定剥离字符如 TRIM('/ ' FROM url)。"
+  },
+  {
+    "title": "SQL 核心语法：ABS / ROUND / CEILING / FLOOR / POWER / SQRT",
+    "category": "语法字典 · 数学函数",
+    "keywords": [
+      "ABS / ROUND / CEILING / FLOOR / POWER / SQRT",
+      "数学函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】ROUND(val, 2) / CEILING(val) / FLOOR(val)\n【作用】绝对值、四舍五入、向上取整、向下取整、幂运算与平方根。",
+    "sql": "SELECT ROUND(123.456, 2) AS Rnd, CEILING(12.1) AS CeilVal, FLOOR(12.9) AS FlrVal;",
+    "pitfall": "ROUND(123.456, 2) 返回 123.460（保留原小数位数），如需截断尾零需配合 CAST(... AS DECIMAL(18,2))；整数相除前务必乘 1.0。"
+  },
+  {
+    "title": "SQL 核心语法：DECLARE / SET / SELECT @var",
+    "category": "语法字典 · T-SQL控制流",
+    "keywords": [
+      "DECLARE / SET / SELECT @var",
+      "T-SQL控制流",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】DECLARE @x INT = 10; SET @x = 20;\n【作用】声明局部变量并赋值；SET 为单变量标准赋值，SELECT 可一次为多变量赋值。",
+    "sql": "DECLARE @TotalAmt DECIMAL(18,2), @Cnt INT;\nSELECT @TotalAmt = SUM(Amount), @Cnt = COUNT(*) FROM dbo.FactOrders;",
+    "pitfall": "当查询返回 0 行时，SET @x = (SELECT ...) 会把 @x 置为 NULL，而 SELECT @x = col FROM ... 会保留 @x 原值不变！"
+  },
+  {
+    "title": "SQL 核心语法：IF ... ELSE / BEGIN ... END / WHILE",
+    "category": "语法字典 · T-SQL控制流",
+    "keywords": [
+      "IF ... ELSE / BEGIN ... END / WHILE",
+      "T-SQL控制流",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】IF cond BEGIN ... END ELSE BEGIN ... END / WHILE cond BEGIN ... END\n【作用】过程化条件分支与循环控制语句块。",
+    "sql": "IF EXISTS (SELECT 1 FROM dbo.StgImport)\nBEGIN\n    EXEC dbo.usp_ProcessImport;\nEND;",
+    "pitfall": "集合操作永远优于逐行 WHILE/CURSOR 循环；除分批 DELETE/UPDATE 外，尽量用纯集合 SQL 替代循环。"
+  },
+  {
+    "title": "SQL 核心语法：GRANT / REVOKE / DENY",
+    "category": "语法字典 · 权限控制DCL",
+    "keywords": [
+      "GRANT / REVOKE / DENY",
+      "权限控制DCL",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】GRANT SELECT ON dbo.vw_Sales TO [BI_Reader];\n【作用】授予（GRANT）、撤销（REVOKE）或显式拒绝（DENY）数据库对象权限；DENY 优先级最高。",
+    "sql": "GRANT SELECT ON SCHEMA::dbo TO [PowerBI_ServiceAccount];\nDENY DELETE ON dbo.FactOrders TO [PowerBI_ServiceAccount];",
+    "pitfall": "Power BI / 报表只读账号应遵循最小权限原则，仅授予特定视图或 Schema 的 SELECT 权限。"
+  },
+  {
+    "title": "SQL 核心语法：GO (批处理分隔符)",
+    "category": "语法字典 · 客户端工具关键字",
+    "keywords": [
+      "GO (批处理分隔符)",
+      "客户端工具关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】CREATE VIEW ... AS SELECT 1; GO\n【作用】SSMS / sqlcmd 客户端批处理分隔符（并非 T-SQL 语言本身关键字），将脚本切分为独立批次提交。",
+    "sql": "USE AnalyticsDB;\nGO\nSELECT TOP (10) * FROM dbo.FactOrders;\nGO",
+    "pitfall": "局部变量 @var 的生命周期仅限于当前 GO 批处理内，跨 GO 后变量即销毁失效。"
   }
 ]
