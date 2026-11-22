@@ -1,58 +1,338 @@
 [
   {
     "title": "开窗函数排名：ROW_NUMBER / RANK / DENSE_RANK",
-    "category": "窗口函数 (Window Functions)",
-    "scenario": "按部门/客户分组取 Top N 或去重（如取每个客户最新一笔订单），比子查询自连接性能高一个量级。",
-    "sql": "WITH RankedOrders AS (\n    SELECT\n        CustomerID,\n        OrderID,\n        OrderDate,\n        Amount,\n        ROW_NUMBER() OVER (\n            PARTITION BY CustomerID\n            ORDER BY OrderDate DESC, OrderID DESC\n        ) AS rn,\n        DENSE_RANK() OVER (\n            PARTITION BY CustomerID\n            ORDER BY Amount DESC\n        ) AS amt_rank\n    FROM dbo.FactOrders\n)\nSELECT CustomerID, OrderID, OrderDate, Amount\nFROM RankedOrders\nWHERE rn = 1;",
-    "pitfall": "ROW_NUMBER 严格连续无并列（1,2,3）；RANK 并列跳号（1,1,3）；DENSE_RANK 并列不跳号（1,1,2）。去重务必用 ROW_NUMBER 并补上唯一键（如 OrderID）打破排序平局，避免结果抖动。"
+    "category": "窗口函数",
+    "keywords": [
+      "ROW_NUMBER",
+      "RANK",
+      "DENSE_RANK",
+      "开窗函数",
+      "窗口函数",
+      "去重",
+      "TopN"
+    ],
+    "scenario": "按客户/部门分组取 Top N 或去重（如取每个客户最新一笔订单），比子查询自连接性能高一个量级。",
+    "sql": "WITH RankedOrders AS (\n    SELECT\n        CustomerID, OrderID, OrderDate, Amount,\n        ROW_NUMBER() OVER (\n            PARTITION BY CustomerID\n            ORDER BY OrderDate DESC, OrderID DESC\n        ) AS rn,\n        DENSE_RANK() OVER (\n            PARTITION BY CustomerID\n            ORDER BY Amount DESC\n        ) AS amt_rank\n    FROM dbo.FactOrders\n)\nSELECT CustomerID, OrderID, OrderDate, Amount\nFROM RankedOrders\nWHERE rn = 1;",
+    "pitfall": "ROW_NUMBER 严格连续（1,2,3）；RANK 并列跳号（1,1,3）；DENSE_RANK 并列不跳号（1,1,2）。去重务必用 ROW_NUMBER 并加唯一键（OrderID）打破平局。"
   },
   {
     "title": "偏移开窗函数：LAG / LEAD 实现零自连接同比与环比",
-    "category": "窗口函数 (Window Functions)",
+    "category": "窗口函数",
+    "keywords": [
+      "LAG",
+      "LEAD",
+      "同比",
+      "环比",
+      "YoY",
+      "MoM",
+      "开窗函数"
+    ],
     "scenario": "财务/销售按月统计环比（MoM）与同比（YoY），无需把大表自连接两次。",
-    "sql": "SELECT\n    YearMonth,\n    SalesAmount,\n    LAG(SalesAmount, 1) OVER (ORDER BY YearMonth) AS PrevMonthSales,\n    LAG(SalesAmount, 12) OVER (ORDER BY YearMonth) AS SameMonthLastYear,\n    CAST(\n        (SalesAmount - LAG(SalesAmount, 1) OVER (ORDER BY YearMonth)) * 100.0\n        / NULLIF(LAG(SalesAmount, 1) OVER (ORDER BY YearMonth), 0)\n    AS DECIMAL(10, 2)) AS MoM_Pct\nFROM dbo.MonthlySales;",
-    "pitfall": "若月份存在断档，LAG(col, 1) 取的是“上一条记录”而非严格意义的上个月；务必先与连续日期维表 LEFT JOIN 补齐空月，并用 NULLIF(..., 0) 防止除零报错。"
+    "sql": "SELECT\n    YearMonth,\n    SalesAmount,\n    LAG(SalesAmount, 1) OVER (ORDER BY YearMonth) AS PrevMonth,\n    LAG(SalesAmount, 12) OVER (ORDER BY YearMonth) AS LastYearSameMonth,\n    CAST(\n        (SalesAmount - LAG(SalesAmount, 1) OVER (ORDER BY YearMonth)) * 100.0\n        / NULLIF(LAG(SalesAmount, 1) OVER (ORDER BY YearMonth), 0)\n    AS DECIMAL(10, 2)) AS MoM_Pct\nFROM dbo.MonthlySales;",
+    "pitfall": "若月份存在断档，LAG(col, 1) 取的是上一行而非严格上个月；务必先 LEFT JOIN 连续日期维表补齐空月，并用 NULLIF(..., 0) 防除零。"
   },
   {
     "title": "滑动窗口聚合：SUM() OVER (ROWS BETWEEN ...)",
-    "category": "窗口函数 (Window Functions)",
-    "scenario": "计算年初至今累计（YTD）、近 7 天移动平均（7-Day Rolling Avg）或留存累计。",
-    "sql": "SELECT\n    OrderDate,\n    DailySales,\n    SUM(DailySales) OVER (\n        PARTITION BY YEAR(OrderDate)\n        ORDER BY OrderDate\n        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n    ) AS YTD_Sales,\n    AVG(DailySales) OVER (\n        ORDER BY OrderDate\n        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW\n    ) AS Rolling7D_Avg\nFROM dbo.DailySalesSummary;",
-    "pitfall": "省略帧子句时默认是 RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW，在 SQL Server 中会触发磁盘 spool（Worktable）导致 I/O 暴涨；明确写 ROWS BETWEEN 可走内存流式聚合，性能提升 5~10 倍。"
+    "category": "窗口函数",
+    "keywords": [
+      "SUM OVER",
+      "ROWS BETWEEN",
+      "RANGE BETWEEN",
+      "YTD",
+      "移动平均",
+      "滑动窗口"
+    ],
+    "scenario": "计算年初至今累计（YTD）、近 7 天移动平均（7D Rolling Avg）或累计占比。",
+    "sql": "SELECT\n    OrderDate, DailySales,\n    SUM(DailySales) OVER (\n        PARTITION BY YEAR(OrderDate)\n        ORDER BY OrderDate\n        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n    ) AS YTD_Sales,\n    AVG(DailySales) OVER (\n        ORDER BY OrderDate\n        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW\n    ) AS Rolling7D_Avg\nFROM dbo.DailySalesSummary;",
+    "pitfall": "省略帧子句时默认是 RANGE BETWEEN，SQL Server 会触发磁盘 Worktable Spool 导致 I/O 暴涨；显式写 ROWS BETWEEN 可走内存流式聚合，提速 5~10 倍。"
+  },
+  {
+    "title": "首尾值开窗：FIRST_VALUE / LAST_VALUE 帧边界陷阱",
+    "category": "窗口函数",
+    "keywords": [
+      "FIRST_VALUE",
+      "LAST_VALUE",
+      "开窗函数",
+      "帧边界"
+    ],
+    "scenario": "在明细行中直接对比当期值与该分组首期值、末期值（如对比当前价与首日发行价/最新收盘价）。",
+    "sql": "SELECT\n    ProductID, PriceDate, Price,\n    FIRST_VALUE(Price) OVER (\n        PARTITION BY ProductID ORDER BY PriceDate\n    ) AS FirstPrice,\n    LAST_VALUE(Price) OVER (\n        PARTITION BY ProductID ORDER BY PriceDate\n        ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING\n    ) AS LatestPrice\nFROM dbo.ProductPriceHistory;",
+    "pitfall": "LAST_VALUE 若不显式指定 ROWS BETWEEN ... AND UNBOUNDED FOLLOWING，默认只看到 CURRENT ROW，结果会退化成当前行本身！"
+  },
+  {
+    "title": "分箱与分位数：NTILE 与 PERCENTILE_CONT",
+    "category": "窗口函数",
+    "keywords": [
+      "NTILE",
+      "PERCENTILE_CONT",
+      "中位数",
+      "分位数",
+      "分箱",
+      "ABC分析"
+    ],
+    "scenario": "客户价值分层（四分位/十分位）或计算分组精确中位数（P50 / P90 响应耗时）。",
+    "sql": "SELECT DISTINCT\n    Region,\n    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY DeliveryHours)\n        OVER (PARTITION BY Region) AS MedianHours,\n    PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY DeliveryHours)\n        OVER (PARTITION BY Region) AS P90Hours\nFROM dbo.FactShipments;",
+    "pitfall": "PERCENTILE_CONT 在 SQL Server 中只能作为窗口函数（必须带 OVER），不能直接配合 GROUP BY，需结合 DISTINCT 或外层聚合去重。"
+  },
+  {
+    "title": "经典 Islands & Gaps：识别连续活跃天数/连续登录区间",
+    "category": "窗口函数",
+    "keywords": [
+      "Islands and Gaps",
+      "连续登录",
+      "连续区间",
+      "DATEADD",
+      "ROW_NUMBER"
+    ],
+    "scenario": "统计每个用户的最长连续活跃天数、连续缺货区间或连续达标月份。",
+    "sql": "WITH DistinctDays AS (\n    SELECT DISTINCT UserID, CAST(LoginTime AS DATE) AS LoginDate\n    FROM dbo.UserLogins\n),\nGrouped AS (\n    SELECT\n        UserID, LoginDate,\n        DATEADD(DAY, -ROW_NUMBER() OVER (PARTITION BY UserID ORDER BY LoginDate), LoginDate) AS GrpKey\n    FROM DistinctDays\n)\nSELECT\n    UserID,\n    MIN(LoginDate) AS StartDate,\n    MAX(LoginDate) AS EndDate,\n    COUNT(*) AS ConsecutiveDays\nFROM Grouped\nGROUP BY UserID, GrpKey;",
+    "pitfall": "必须先按 (UserID, LoginDate) 去重！若同一天有多条登录记录，ROW_NUMBER 递增会导致同一天被拆到不同 GrpKey。"
   },
   {
     "title": "递归 CTE：一键展开组织架构 / 物料清单 (BOM)",
     "category": "CTE 与层级查询",
+    "keywords": [
+      "CTE",
+      "递归",
+      "BOM",
+      "组织架构",
+      "MAXRECURSION",
+      "层级"
+    ],
     "scenario": "将父子自引用表（EmployeeID -> ManagerID）展开为完整层级路径与深度，供 Power BI 权限或钻取使用。",
-    "sql": "WITH OrgTree AS (\n    SELECT\n        EmpID, ManagerID, EmpName,\n        0 AS Level,\n        CAST(EmpName AS NVARCHAR(1000)) AS FullPath\n    FROM dbo.DimEmployee\n    WHERE ManagerID IS NULL\n    UNION ALL\n    SELECT\n        e.EmpID, e.ManagerID, e.EmpName,\n        t.Level + 1,\n        CAST(t.FullPath + N' > ' + e.EmpName AS NVARCHAR(1000))\n    FROM dbo.DimEmployee e\n    INNER JOIN OrgTree t ON e.ManagerID = t.EmpID\n)\nSELECT EmpID, EmpName, Level, FullPath\nFROM OrgTree\nOPTION (MAXRECURSION 100);",
-    "pitfall": "锚点与递归成员的字符串列长度/类型必须一致（用 CAST 显式对齐）；务必加 OPTION (MAXRECURSION N) 防止脏数据成环导致死循环。"
+    "sql": "WITH OrgTree AS (\n    SELECT\n        EmpID, ManagerID, EmpName, 0 AS Level,\n        CAST(EmpName AS NVARCHAR(1000)) AS FullPath\n    FROM dbo.DimEmployee\n    WHERE ManagerID IS NULL\n    UNION ALL\n    SELECT\n        e.EmpID, e.ManagerID, e.EmpName, t.Level + 1,\n        CAST(t.FullPath + N' > ' + e.EmpName AS NVARCHAR(1000))\n    FROM dbo.DimEmployee e\n    INNER JOIN OrgTree t ON e.ManagerID = t.EmpID\n)\nSELECT EmpID, EmpName, Level, FullPath\nFROM OrgTree\nOPTION (MAXRECURSION 100);",
+    "pitfall": "锚点与递归成员的字符串类型/长度必须一致；务必加 OPTION (MAXRECURSION N) 防止脏数据成环导致死循环。"
   },
   {
-    "title": "SARGable 索引防失效：避免在 WHERE 索引列上套函数",
-    "category": "执行计划与性能调优",
-    "scenario": "按年份或日期范围筛选千万级事实表时，让优化器走 Index Seek 而非全表 Index Scan。",
+    "title": "SARGable 索引防失效：禁止在 WHERE 索引列上套函数",
+    "category": "性能调优与索引",
+    "keywords": [
+      "SARGable",
+      "Index Seek",
+      "Index Scan",
+      "索引失效",
+      "性能调优"
+    ],
+    "scenario": "按年份或月份筛选千万级事实表时，让优化器走 Index Seek 而非全表扫描。",
     "sql": "-- ❌ 反例：对索引列套函数，导致索引完全失效（Index Scan）\nSELECT OrderID, Amount\nFROM dbo.FactOrders\nWHERE YEAR(OrderDate) = 2026 AND MONTH(OrderDate) = 11;\n\n-- ✅ 正例：改写为半开区间范围查询，精准触发 Index Seek\nSELECT OrderID, Amount\nFROM dbo.FactOrders\nWHERE OrderDate >= '2026-11-01'\n  AND OrderDate <  '2026-12-01';",
-    "pitfall": "除 YEAR/MONTH 外，ISNULL(Col, 0) = 0、Col + 1 = 10、隐式类型转换（NVARCHAR 与 VARCHAR 混比）同样会破坏 SARGability，导致 CPU 和逻辑读飙升。"
+    "pitfall": "除 YEAR/MONTH 外，ISNULL(Col,0)=0、Col+1=10、NVARCHAR 与 VARCHAR 隐式转换都会破坏 SARGability。"
+  },
+  {
+    "title": "覆盖索引 (INCLUDE)：彻底消除百万级 Key Lookup 回表",
+    "category": "性能调优与索引",
+    "keywords": [
+      "覆盖索引",
+      "INCLUDE",
+      "Key Lookup",
+      "回表",
+      "非聚集索引"
+    ],
+    "scenario": "高频查询虽然走了 Index Seek，但执行计划里出现高成本 Key Lookup（书签查找）拖慢响应。",
+    "sql": "CREATE NONCLUSTERED INDEX IX_FactOrders_CustDate\nON dbo.FactOrders (CustomerID, OrderDate DESC)\nINCLUDE (OrderStatus, TotalAmount)\nWITH (ONLINE = ON, DATA_COMPRESSION = PAGE);",
+    "pitfall": "键列（Key Columns）放 WHERE/JOIN/ORDER BY 列，INCLUDE 只放 SELECT 输出列，既消除回表又避免索引键过宽膨胀 B 树。"
+  },
+  {
+    "title": "过滤索引 (Filtered Index)：极小体积加速稀疏热点查询",
+    "category": "性能调优与索引",
+    "keywords": [
+      "过滤索引",
+      "Filtered Index",
+      "稀疏数据",
+      "索引优化"
+    ],
+    "scenario": "千万行订单表中 99% 已完成，业务只频繁查 Status = 'Pending' 的 1% 活跃订单。",
+    "sql": "CREATE NONCLUSTERED INDEX IX_FactOrders_Pending\nON dbo.FactOrders (OrderDate, CustomerID)\nINCLUDE (TotalAmount)\nWHERE OrderStatus = 'Pending';",
+    "pitfall": "查询中的 WHERE 条件必须与过滤索引谓词完全匹配且不能用局部变量（如 WHERE OrderStatus = @Status 除非配合 OPTION (RECOMPILE)），否则优化器无法使用。"
+  },
+  {
+    "title": "参数嗅探 (Parameter Sniffing) 诊断与 OPTION (RECOMPILE)",
+    "category": "性能调优与索引",
+    "keywords": [
+      "参数嗅探",
+      "Parameter Sniffing",
+      "RECOMPILE",
+      "OPTIMIZE FOR",
+      "存储过程"
+    ],
+    "scenario": "存储过程有时 50ms 返回，换个参数却卡死 30 秒（因数据分布极度倾斜，复用了不匹配的缓存执行计划）。",
+    "sql": "CREATE OR ALTER PROCEDURE dbo.usp_GetOrdersByCustomer\n    @CustomerID INT,\n    @StartDate  DATE\nAS\nBEGIN\n    SET NOCOUNT ON;\n    SELECT OrderID, OrderDate, TotalAmount\n    FROM dbo.FactOrders\n    WHERE CustomerID = @CustomerID\n      AND OrderDate >= @StartDate\n    OPTION (RECOMPILE);\nEND;",
+    "pitfall": "低频重型报表查询优先用 OPTION (RECOMPILE)；超高频 OLTP 短查询则应改用 OPTIMIZE FOR UNKNOWN 或按大小客户拆分子过程，避免编译 CPU 飙升。"
   },
   {
     "title": "CROSS APPLY vs OUTER APPLY：行级相关子查询神器",
-    "category": "高级关联 (APPLY)",
-    "scenario": "为每个主表客户关联“最近 3 笔订单”或复用复杂表达式，替代繁琐的多次 CTE 嵌套。",
-    "sql": "SELECT\n    c.CustomerID,\n    c.CustomerName,\n    o.OrderID,\n    o.OrderDate,\n    o.Amount\nFROM dbo.DimCustomer c\nOUTER APPLY (\n    SELECT TOP (3) OrderID, OrderDate, Amount\n    FROM dbo.FactOrders f\n    WHERE f.CustomerID = c.CustomerID\n    ORDER BY f.OrderDate DESC\n) o;",
-    "pitfall": "CROSS APPLY 等价于 INNER JOIN（无匹配则过滤主表行），OUTER APPLY 等价于 LEFT JOIN（保留主表行并补 NULL）。大表关联时务必确保内表有 (CustomerID, OrderDate DESC) 复合索引。"
+    "category": "高级关联",
+    "keywords": [
+      "CROSS APPLY",
+      "OUTER APPLY",
+      "APPLY",
+      "TopN关联"
+    ],
+    "scenario": "为每个主表客户关联“最近 3 笔订单”或复用计算列，替代繁琐的多层 CTE。",
+    "sql": "SELECT c.CustomerID, c.CustomerName, o.OrderID, o.OrderDate, o.Amount\nFROM dbo.DimCustomer c\nOUTER APPLY (\n    SELECT TOP (3) OrderID, OrderDate, Amount\n    FROM dbo.FactOrders f\n    WHERE f.CustomerID = c.CustomerID\n    ORDER BY f.OrderDate DESC\n) o;",
+    "pitfall": "CROSS APPLY 等价于 INNER JOIN，OUTER APPLY 等价于 LEFT JOIN。内表务必建 (CustomerID, OrderDate DESC) 索引，否则会退化为嵌套循环全表扫描。"
   },
   {
-    "title": "NOT EXISTS vs NOT IN：彻底规避 NULL 导致的空结果陷阱",
-    "category": "逻辑防御与集合运算",
+    "title": "NOT EXISTS vs NOT IN：彻底规避 NULL 空结果陷阱",
+    "category": "逻辑防御",
+    "keywords": [
+      "NOT EXISTS",
+      "NOT IN",
+      "NULL陷阱",
+      "三值逻辑",
+      "Anti Semi Join"
+    ],
     "scenario": "筛选从未下过单的客户或对比新旧维表差异。",
-    "sql": "-- ✅ 推荐：NOT EXISTS 免疫子查询中的 NULL，且优化器走 Anti Semi Join\nSELECT c.CustomerID, c.CustomerName\nFROM dbo.DimCustomer c\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM dbo.FactOrders o\n    WHERE o.CustomerID = c.CustomerID\n);",
-    "pitfall": "若子查询列中哪怕只有 1 条 NULL，NOT IN 会因三值逻辑（UNKNOWN）直接返回 0 行！生产环境排查差异一律优先使用 NOT EXISTS。"
+    "sql": "SELECT c.CustomerID, c.CustomerName\nFROM dbo.DimCustomer c\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM dbo.FactOrders o\n    WHERE o.CustomerID = c.CustomerID\n);",
+    "pitfall": "只要子查询列中出现 1 个 NULL，NOT IN 会因三值逻辑（UNKNOWN）整条返回 0 行！生产排查差异一律用 NOT EXISTS。"
   },
   {
     "title": "GROUPING SETS / ROLLUP：单次扫描输出多维小计与总计",
     "category": "多维聚合",
-    "scenario": "报表需要同时输出“按大区+品类明细”、“大区小计”与“全局总计”，避免写 3 段 UNION ALL 重复扫表。",
+    "keywords": [
+      "GROUPING SETS",
+      "ROLLUP",
+      "CUBE",
+      "GROUPING",
+      "小计",
+      "总计"
+    ],
+    "scenario": "报表需要同时输出“大区+品类明细”、“大区小计”与“全局总计”，避免写 3 段 UNION ALL 重复扫表。",
     "sql": "SELECT\n    COALESCE(Region, N'总计') AS Region,\n    COALESCE(Category, N'小计') AS Category,\n    SUM(SalesAmount) AS TotalSales,\n    GROUPING(Region) AS IsGrandTotal\nFROM dbo.FactSales\nGROUP BY ROLLUP (Region, Category);",
-    "pitfall": "用 GROUPING(Col) = 1 区分“聚合产生的 NULL”与“源数据本身的 NULL”，避免把空值分类误标成小计/总计。"
+    "pitfall": "用 GROUPING(Col)=1 区分“聚合产生的 NULL”与“源数据本身的 NULL”，防止把空分类误标成小计/总计。"
+  },
+  {
+    "title": "条件聚合：SUM(CASE WHEN ...) 替代笨重 PIVOT",
+    "category": "多维聚合",
+    "keywords": [
+      "条件聚合",
+      "CASE WHEN",
+      "行转列",
+      "PIVOT"
+    ],
+    "scenario": "单次扫描把多状态/多季度指标横向展开（如同时统计待支付/已支付/已退款金额与笔数）。",
+    "sql": "SELECT\n    Region,\n    SUM(CASE WHEN OrderStatus = 'Paid' THEN Amount ELSE 0 END) AS PaidAmt,\n    SUM(CASE WHEN OrderStatus = 'Refunded' THEN Amount ELSE 0 END) AS RefundAmt,\n    COUNT(CASE WHEN OrderStatus = 'Paid' THEN 1 END) AS PaidCnt\nFROM dbo.FactOrders\nGROUP BY Region;",
+    "pitfall": "COUNT(CASE WHEN ... THEN 1 END) 千万不要加 ELSE 0，因为 COUNT 会把 0 也计入行数！不写 ELSE 默认返回 NULL 才会被 COUNT 正确跳过。"
+  },
+  {
+    "title": "Keyset Pagination (游标分页)：消灭深度 OFFSET 翻页卡顿",
+    "category": "性能调优与索引",
+    "keywords": [
+      "Keyset Pagination",
+      "OFFSET FETCH",
+      "深度分页",
+      "翻页优化"
+    ],
+    "scenario": "API 或导出接口翻到第 5000 页时，OFFSET 500000 FETCH NEXT 50 需扫描并丢弃 50 万行导致超时。",
+    "sql": "-- ✅ 游标分页：传入上一页最后一条的 (OrderDate, OrderID)，恒定毫秒级\nSELECT TOP (50) OrderID, OrderDate, Amount\nFROM dbo.FactOrders\nWHERE (OrderDate < @LastOrderDate)\n   OR (OrderDate = @LastOrderDate AND OrderID < @LastOrderID)\nORDER BY OrderDate DESC, OrderID DESC;",
+    "pitfall": "游标分页必须包含唯一键（OrderID）作为第二排序键，否则同一时间戳下的数据会在翻页时漏行或重复。"
+  },
+  {
+    "title": "MERGE 增量同步与 HOLDLOCK 防并发主键冲突",
+    "category": "DML 与数仓 ETL",
+    "keywords": [
+      "MERGE",
+      "HOLDLOCK",
+      "UPSERT",
+      "增量同步",
+      "ETL"
+    ],
+    "scenario": "数仓定时将 Staging 增量表合并至目标事实/维度表（存在则更新，不存在则插入）。",
+    "sql": "MERGE dbo.DimProduct WITH (HOLDLOCK) AS tgt\nUSING dbo.StgProduct AS src\n   ON tgt.ProductSKU = src.ProductSKU\nWHEN MATCHED AND (tgt.Price <> src.Price OR tgt.ProductName <> src.ProductName) THEN\n    UPDATE SET tgt.Price = src.Price, tgt.ProductName = src.ProductName, tgt.UpdatedAt = SYSUTCDATETIME()\nWHEN NOT MATCHED BY TARGET THEN\n    INSERT (ProductSKU, ProductName, Price) VALUES (src.ProductSKU, src.ProductName, src.Price);",
+    "pitfall": "SQL Server 的 MERGE 默认不是原子的，高并发下不加 WITH (HOLDLOCK) 极易抛出主键冲突（2627）；且 MERGE 语句末尾必须带分号 `;`。"
+  },
+  {
+    "title": "STRING_AGG 分组字符串拼接与 WITHIN GROUP 排序",
+    "category": "字符串与 JSON",
+    "keywords": [
+      "STRING_AGG",
+      "WITHIN GROUP",
+      "分组拼接",
+      "FOR XML PATH"
+    ],
+    "scenario": "将每个订单包含的多个商品名称合并为逗号分隔字符串（SQL Server 2017+ 彻底替代 FOR XML PATH）。",
+    "sql": "SELECT\n    OrderID,\n    STRING_AGG(CAST(ProductName AS NVARCHAR(MAX)), N', ')\n        WITHIN GROUP (ORDER BY LineNo ASC) AS ProductList\nFROM dbo.FactOrderLines\nGROUP BY OrderID;",
+    "pitfall": "若拼接结果超过 8000 字节会直接报错截断！务必先将字段 CAST(... AS NVARCHAR(MAX)) 再传入 STRING_AGG。"
+  },
+  {
+    "title": "OPENJSON + WITH：原生高速解析 JSON 数组入表",
+    "category": "字符串与 JSON",
+    "keywords": [
+      "OPENJSON",
+      "JSON",
+      "JSON_VALUE",
+      "解析JSON"
+    ],
+    "scenario": "将上游 API 或日志里的 JSON 数组直接拆解为强类型关系表，用于批量入库或关联查询。",
+    "sql": "DECLARE @json NVARCHAR(MAX) = N'[{\"sku\":\"A01\",\"qty\":3},{\"sku\":\"B02\",\"qty\":5}]';\n\nSELECT j.sku, j.qty\nFROM OPENJSON(@json)\nWITH (\n    sku VARCHAR(20) '$.sku',\n    qty INT         '$.qty'\n) AS j;",
+    "pitfall": "OPENJSON 默认不校验字段缺失（返回 NULL）；如需强校验字段必须存在，在路径前加 strict，例如 `'strict $.sku'`。"
+  },
+  {
+    "title": "TRY_CONVERT / TRY_CAST 与 NULLIF：ETL 零报错清洗",
+    "category": "逻辑防御",
+    "keywords": [
+      "TRY_CONVERT",
+      "TRY_CAST",
+      "NULLIF",
+      "COALESCE",
+      "数据清洗"
+    ],
+    "scenario": "清洗外部 CSV/Excel 导入的脏文本（含非法日期或非数字字符），防止单条脏数据打断整批 ETL。",
+    "sql": "SELECT\n    RawID,\n    TRY_CONVERT(DATE, RawDateStr, 23) AS CleanDate,\n    COALESCE(TRY_CAST(RawAmtStr AS DECIMAL(18, 2)), 0.00) AS CleanAmt,\n    TotalRevenue / NULLIF(OrderCount, 0) AS AvgOrderValue\nFROM dbo.StgRawImport;",
+    "pitfall": "ISNUMERIC('1e5') 或 ISNUMERIC('$') 会返回 1 但 CAST AS INT 仍报错；清洗一律用 TRY_CAST / TRY_CONVERT，转换失败安全返回 NULL。"
+  },
+  {
+    "title": "动态 SQL 防注入：sp_executesql 强类型参数化",
+    "category": "安全与动态SQL",
+    "keywords": [
+      "sp_executesql",
+      "动态SQL",
+      "SQL注入",
+      "QUOTENAME"
+    ],
+    "scenario": "表名/列名动态变化或组合可选筛选条件时，既防 SQL 注入又能复用执行计划缓存。",
+    "sql": "DECLARE @TableName SYSNAME = N'FactOrders';\nDECLARE @MinAmt DECIMAL(18,2) = 1000.00;\nDECLARE @sql NVARCHAR(MAX) =\n    N'SELECT TOP (100) OrderID, Amount FROM dbo.' + QUOTENAME(@TableName)\n  + N' WHERE Amount >= @pMinAmt ORDER BY OrderDate DESC;';\n\nEXEC sys.sp_executesql\n    @stmt    = @sql,\n    @params  = N'@pMinAmt DECIMAL(18,2)',\n    @pMinAmt = @MinAmt;",
+    "pitfall": "对象名（表名/列名）必须用 QUOTENAME() 包裹防注入，值参数必须通过 sp_executesql 传参，严禁直接 EXEC(@sql) 字符串拼接用户输入。"
+  },
+  {
+    "title": "事务与并发：为什么生产环境严禁滥用 WITH (NOLOCK)",
+    "category": "事务与并发",
+    "keywords": [
+      "NOLOCK",
+      "RCSI",
+      "脏读",
+      "幻读",
+      "事务隔离级别"
+    ],
+    "scenario": "报表查询被写事务阻塞时，很多开发习惯随手加 WITH (NOLOCK)，却导致财务对账金额忽大忽小。",
+    "sql": "-- ✅ 生产级根治方案：在数据库级开启 RCSI (读已提交快照隔离)\nALTER DATABASE YourDB\nSET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;\n\n-- 开启后普通 SELECT 自动读取行版本，读写互不阻塞且绝无脏读！",
+    "pitfall": "NOLOCK 不仅会读到未提交回滚的脏数据，还会因页分裂导致同一行被读两次或漏读！用 RCSI 替代 NOLOCK 是 SQL Server 黄金标准。"
+  },
+  {
+    "title": "分批删除 (Chunked Delete)：千万级清理不撑爆事务日志",
+    "category": "DML 与数仓 ETL",
+    "keywords": [
+      "分批删除",
+      "DELETE TOP",
+      "事务日志",
+      "锁升级",
+      "归档"
+    ],
+    "scenario": "清理历史 3 年前的 5000 万行日志表，避免单条 DELETE 引发锁升级（Table Lock）和日志盘写满。",
+    "sql": "SET NOCOUNT ON;\nDECLARE @BatchSize INT = 5000;\nWHILE 1 = 1\nBEGIN\n    DELETE TOP (@BatchSize)\n    FROM dbo.AuditLog\n    WHERE CreatedAt < DATEADD(YEAR, -3, SYSUTCDATETIME());\n\n    IF @@ROWCOUNT < @BatchSize BREAK;\n    WAITFOR DELAY '00:00:00.100';\nEND;",
+    "pitfall": "单批控制在 4000~5000 行以内可避开 SQL Server 默认约 5000 锁触发的表级锁升级（Lock Escalation），同时让出 I/O 给线上业务。"
+  },
+  {
+    "title": "临时表 (#Temp) vs 表变量 (@TableVar) 选型铁律",
+    "category": "性能调优与索引",
+    "keywords": [
+      "临时表",
+      "表变量",
+      "统计信息",
+      "TempDB",
+      "执行计划"
+    ],
+    "scenario": "复杂 ETL 或多步报表计算需要落地中间结果集时，如何避免优化器严重低估行数。",
+    "sql": "CREATE TABLE #StageSales (\n    CustomerID INT NOT NULL,\n    TotalAmt   DECIMAL(18, 2) NOT NULL,\n    PRIMARY KEY CLUSTERED (CustomerID)\n);\n\nINSERT INTO #StageSales (CustomerID, TotalAmt)\nSELECT CustomerID, SUM(Amount)\nFROM dbo.FactOrders\nGROUP BY CustomerID;",
+    "pitfall": "表变量 @t 没有列统计信息（旧版恒估 1 行），一旦超过几百行极易选错 Nested Loops 导致慢百倍；中间结果超 100 行一律优先用 #Temp 临时表并建聚集索引。"
   }
 ]

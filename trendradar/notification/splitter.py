@@ -2264,10 +2264,10 @@ def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
 
 
 def _get_random_sql_tip() -> Optional[Dict]:
-    """从 sql_tips.json 随机抽取一条 SQL 实战语法精粹"""
+    """从 sql_tips.json 按北京日期顺序轮播一条 SQL 实战语法精粹（每天固定一条，全库不重样）"""
     import json
-    import random
     from pathlib import Path
+    from zoneinfo import ZoneInfo
 
     tip_file = Path(__file__).resolve().parent.parent / "data" / "sql_tips.json"
     if not tip_file.exists():
@@ -2275,7 +2275,9 @@ def _get_random_sql_tip() -> Optional[Dict]:
     try:
         tips = json.loads(tip_file.read_text(encoding="utf-8-sig"))
         if isinstance(tips, list) and tips:
-            return random.choice(tips)
+            today = datetime.now(ZoneInfo("Asia/Shanghai")).date()
+            idx = today.toordinal() % len(tips)
+            return tips[idx]
     except Exception:
         pass
     return None
