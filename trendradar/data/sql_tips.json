@@ -1622,5 +1622,215 @@
     "scenario": "【语法】INSERT INTO dbo.tbl DEFAULT VALUES;\n【作用】所有列均使用默认约束（DEFAULT）或自增（IDENTITY）快速插入一行占位/初始化记录。",
     "sql": "INSERT INTO dbo.BatchRunLog DEFAULT VALUES;\nSELECT SCOPE_IDENTITY() AS NewBatchID;",
     "pitfall": "表中所有非自增、非可空列都必须定义了 DEFAULT 约束，否则执行会报错。"
+  },
+  {
+    "title": "SQL 核心语法：GENERATE_SERIES()",
+    "category": "语法字典 · SQL Server 2022新特性",
+    "keywords": [
+      "GENERATE_SERIES()",
+      "SQL Server 2022新特性",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT value FROM GENERATE_SERIES(1, 365, 1);\n【作用】原生表值函数，一行代码生成连续数字或日期序列，彻底替代手写递归 CTE 或辅助数字表。",
+    "sql": "SELECT DATEADD(DAY, value, CAST('2026-01-01' AS DATE)) AS CalendarDate\nFROM GENERATE_SERIES(0, 364, 1);",
+    "pitfall": "要求数据库兼容级别 >= 160（SQL Server 2022+ / Azure SQL）；start、stop、step 三者类型必须一致。"
+  },
+  {
+    "title": "SQL 核心语法：DATE_BUCKET()",
+    "category": "语法字典 · SQL Server 2022新特性",
+    "keywords": [
+      "DATE_BUCKET()",
+      "SQL Server 2022新特性",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】DATE_BUCKET(MINUTE, 15, EventTime)\n【作用】将时间戳按任意自定义时间桶（如每 15 分钟、每 4 小时、每 7 天）对齐分组，时序监控聚合神器。",
+    "sql": "SELECT\n    DATE_BUCKET(MINUTE, 15, EventTime) AS Bucket15Min,\n    COUNT(*) AS ReqCount\nFROM dbo.ApiLogs\nGROUP BY DATE_BUCKET(MINUTE, 15, EventTime);",
+    "pitfall": "默认基准原点为 1900-01-01 00:00:00（周一），也可传第 4 参数 @origin 自定义对齐起点。"
+  },
+  {
+    "title": "SQL 核心语法：GREATEST() / LEAST()",
+    "category": "语法字典 · SQL Server 2022新特性",
+    "keywords": [
+      "GREATEST() / LEAST()",
+      "SQL Server 2022新特性",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】GREATEST(col1, col2, col3) / LEAST(col1, col2, col3)\n【作用】横向跨多列直接取最大值或最小值，告别冗长的嵌套 CASE WHEN 或 VALUES 子查询。",
+    "sql": "SELECT OrderID,\n       GREATEST(CreatedAt, PaidAt, ShippedAt) AS LatestEventTime\nFROM dbo.FactOrders;",
+    "pitfall": "会自动忽略 NULL 值；只有当所有参数全为 NULL 时才返回 NULL。"
+  },
+  {
+    "title": "SQL 核心语法：IS [NOT] DISTINCT FROM",
+    "category": "语法字典 · SQL Server 2022新特性",
+    "keywords": [
+      "IS [NOT] DISTINCT FROM",
+      "SQL Server 2022新特性",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】WHERE a IS DISTINCT FROM b\n【作用】NULL-safe 等值比较：把 NULL = NULL 视为相等，彻底取代冗长的 (a <> b OR (a IS NULL AND b IS NOT NULL) ...)。",
+    "sql": "UPDATE t\nSET t.Price = s.Price\nFROM dbo.DimProduct t\nJOIN dbo.StgProduct s ON t.SKU = s.SKU\nWHERE t.Price IS DISTINCT FROM s.Price;",
+    "pitfall": "在 MERGE/UPDATE 增量比对含可空列时极其简洁，且支持走索引 Seek（SARGable）。"
+  },
+  {
+    "title": "SQL 核心语法：WINDOW 命名窗口子句",
+    "category": "语法字典 · SQL Server 2022新特性",
+    "keywords": [
+      "WINDOW 命名窗口子句",
+      "SQL Server 2022新特性",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT SUM(x) OVER w, AVG(x) OVER w FROM tbl WINDOW w AS (PARTITION BY ... ORDER BY ...);\n【作用】在查询末尾统一定义命名窗口，供多个开窗函数复用，消除重复冗长的 OVER(...) 代码。",
+    "sql": "SELECT\n    OrderDate, DailySales,\n    SUM(DailySales) OVER w AS Rolling7D_Sum,\n    AVG(DailySales) OVER w AS Rolling7D_Avg\nFROM dbo.DailySales\nWINDOW w AS (ORDER BY OrderDate ROWS BETWEEN 6 PRECEDING AND CURRENT ROW);",
+    "pitfall": "WINDOW 子句语法位置在 HAVING 之后、ORDER BY 之前。"
+  },
+  {
+    "title": "SQL 核心语法：SET IDENTITY_INSERT ON/OFF",
+    "category": "语法字典 · DML与数据迁移",
+    "keywords": [
+      "SET IDENTITY_INSERT ON/OFF",
+      "DML与数据迁移",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SET IDENTITY_INSERT dbo.tbl ON; INSERT INTO dbo.tbl (ID, ...) VALUES (...); SET IDENTITY_INSERT dbo.tbl OFF;\n【作用】数据迁移或修复历史数据时，临时允许显式向 IDENTITY 自增列插入指定主键值。",
+    "sql": "SET IDENTITY_INSERT dbo.DimCategory ON;\nINSERT INTO dbo.DimCategory (CategoryID, CategoryName) VALUES (999, N'历史归档');\nSET IDENTITY_INSERT dbo.DimCategory OFF;",
+    "pitfall": "同一会话同一时刻只能对 1 张表开启 IDENTITY_INSERT，且 INSERT 语句必须显式列出全部列名，用完务必关闭。"
+  },
+  {
+    "title": "SQL 核心语法：HASHBYTES('SHA2_256', ...)",
+    "category": "语法字典 · DML与数仓ETL",
+    "keywords": [
+      "HASHBYTES('SHA2_256', ...)",
+      "DML与数仓ETL",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】HASHBYTES('SHA2_256', CONCAT_WS('|', col1, col2, col3))\n【作用】计算整行多列组合的 32 字节二进制哈希值，用于数仓宽表增量 ETL 极速判断行级变更（替代 50 列逐列比较）。",
+    "sql": "SELECT\n    ProductSKU,\n    HASHBYTES('SHA2_256', CONCAT_WS(N'|', ProductName, Category, CAST(Price AS NVARCHAR(30)))) AS RowHash\nFROM dbo.StgProduct;",
+    "pitfall": "MD5/SHA1 已过时，生产一律用 SHA2_256；拼接前务必加分隔符（CONCAT_WS）防 'AB'+'C' 与 'A'+'BC' 哈希碰撞。"
+  },
+  {
+    "title": "SQL 核心语法：Temporal Tables (时态表)",
+    "category": "语法字典 · 数仓与审计",
+    "keywords": [
+      "Temporal Tables (时态表)",
+      "数仓与审计",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT * FROM dbo.DimProduct FOR SYSTEM_TIME AS OF '2026-10-01 00:00:00';\n【作用】SQL Server 原生系统版本时态表，自动记录每次 UPDATE/DELETE 的历史版本，支持任意时间点“时间旅行”查询。",
+    "sql": "SELECT ProductSKU, Price\nFROM dbo.DimProduct\nFOR SYSTEM_TIME AS OF '2026-11-01 00:00:00'\nWHERE ProductSKU = 'A001';",
+    "pitfall": "底层依赖 SysStartTime/SysEndTime（UTC），比手工维护触发器审计表更可靠、零业务代码侵入。"
+  },
+  {
+    "title": "SQL 核心语法：TVP (表值参数 Table-Valued Parameter)",
+    "category": "语法字典 · DML与存储过程",
+    "keywords": [
+      "TVP (表值参数 Table-Valued Parameter)",
+      "DML与存储过程",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】CREATE TYPE dbo.IntIdList AS TABLE (ID INT PRIMARY KEY); EXEC dbo.usp_Batch @Ids = @tvp;\n【作用】将整张内存表作为强类型参数一次性传入存储过程，替代逗号拼接字符串 IN 拆分，批量入库提速 10 倍。",
+    "sql": "CREATE TYPE dbo.OrderLineTvp AS TABLE (SKU VARCHAR(50), Qty INT);\nGO\nCREATE OR ALTER PROCEDURE dbo.usp_BulkInsertLines @Lines dbo.OrderLineTvp READONLY AS\nBEGIN\n    INSERT INTO dbo.FactOrderLines (SKU, Qty) SELECT SKU, Qty FROM @Lines;\nEND;",
+    "pitfall": "存储过程声明 TVP 参数时必须带 READONLY 关键字；且 TVP 属于表变量，超千行关联前建议先落 #Temp 表建索引。"
+  },
+  {
+    "title": "SQL 核心语法：DMV 排查实时阻塞与锁链",
+    "category": "语法字典 · 运维排查DMV",
+    "keywords": [
+      "DMV 排查实时阻塞与锁链",
+      "运维排查DMV",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT session_id, blocking_session_id, wait_type, wait_time FROM sys.dm_exec_requests WHERE blocking_session_id <> 0;\n【作用】线上接口卡死时，秒级定位“谁阻塞了谁”、等待类型（LCK_M_X / PAGEIOLATCH）及正在执行的 SQL 文本。",
+    "sql": "SELECT\n    r.session_id, r.blocking_session_id, r.wait_type, r.wait_time / 1000.0 AS WaitSec,\n    SUBSTRING(t.text, (r.statement_start_offset/2)+1, 200) AS RunningSql\nFROM sys.dm_exec_requests r\nCROSS APPLY sys.dm_exec_sql_text(r.sql_handle) t\nWHERE r.blocking_session_id <> 0;",
+    "pitfall": "需顺藤摸瓜找到 blocking_session_id = 0 的根阻塞源头（Lead Blocker），切勿盲目 KILL 下游受害者会话。"
+  },
+  {
+    "title": "SQL 核心语法：DMV 诊断缺失索引 (Missing Indexes)",
+    "category": "语法字典 · 运维排查DMV",
+    "keywords": [
+      "DMV 诊断缺失索引 (Missing Indexes)",
+      "运维排查DMV",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT ... FROM sys.dm_db_missing_index_details d JOIN sys.dm_db_missing_index_group_stats s ...\n【作用】从 SQL Server 优化器历史记录中直接提取收益最高（impact * user_seeks）的缺失索引建议。",
+    "sql": "SELECT TOP (10)\n    d.statement AS TableName,\n    d.equality_columns, d.inequality_columns, d.included_columns,\n    CAST(s.avg_total_user_cost * s.avg_user_impact * (s.user_seeks + s.user_scans) AS BIGINT) AS Score\nFROM sys.dm_db_missing_index_details d\nJOIN sys.dm_db_missing_index_groups g ON d.index_handle = g.index_handle\nJOIN sys.dm_db_missing_index_group_stats s ON g.index_group_handle = s.group_handle\nORDER BY Score DESC;",
+    "pitfall": "切勿无脑照搬 DMV 建议直接建索引！必须人工合并相似索引，否则单表建十几个冗余索引会拖垮写入性能。"
+  },
+  {
+    "title": "SQL 核心语法：DMV 定位 Top 慢查询与高逻辑读",
+    "category": "语法字典 · 运维排查DMV",
+    "keywords": [
+      "DMV 定位 Top 慢查询与高逻辑读",
+      "运维排查DMV",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT TOP (10) ... FROM sys.dm_exec_query_stats ORDER BY total_logical_reads DESC;\n【作用】按总逻辑读（I/O）或总 CPU 时间找出全库最消耗资源的 Top 10 慢查询 SQL。",
+    "sql": "SELECT TOP (10)\n    qs.execution_count,\n    qs.total_logical_reads / qs.execution_count AS AvgReads,\n    qs.total_worker_time / qs.execution_count / 1000.0 AS AvgCpuMs,\n    SUBSTRING(t.text, (qs.statement_start_offset/2)+1, 200) AS QueryText\nFROM sys.dm_exec_query_stats qs\nCROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) t\nORDER BY qs.total_logical_reads DESC;",
+    "pitfall": "SQL Server 重启后该视图统计会清零；长期监控慢查询推荐开启数据库级 Query Store（查询存储）。"
+  },
+  {
+    "title": "SQL 核心语法：TRANSLATE()",
+    "category": "语法字典 · 字符串函数",
+    "keywords": [
+      "TRANSLATE()",
+      "字符串函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】TRANSLATE(input, characters, translations)\n【作用】单次遍历将多个指定字符一一映射替换为目标字符（SQL Server 2017+，比嵌套 5 层 REPLACE 简洁高效）。",
+    "sql": "SELECT TRANSLATE(N'[2026]-(11)-{22}', N'[](){}', N'      ') AS CleanedText;",
+    "pitfall": "第 2 参数和第 3 参数的字符长度必须完全一致，否则直接报错。"
+  },
+  {
+    "title": "SQL 核心语法：CHOOSE()",
+    "category": "语法字典 · 条件与空值函数",
+    "keywords": [
+      "CHOOSE()",
+      "条件与空值函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】CHOOSE(index, val1, val2, val3, ...)\n【作用】按 1-based 整数索引从候选列表中直接取值（常用于月份/季度数字转中文名称）。",
+    "sql": "SELECT OrderDate, CHOOSE(DATEPART(QUARTER, OrderDate), N'第一季度', N'第二季度', N'第三季度', N'第四季度') AS QtrName\nFROM dbo.FactOrders;",
+    "pitfall": "索引超出范围或为 NULL 时安全返回 NULL，不会抛错。"
+  },
+  {
+    "title": "SQL 核心语法：PARSE() / TRY_PARSE()",
+    "category": "语法字典 · 类型转换独立函数",
+    "keywords": [
+      "PARSE() / TRY_PARSE()",
+      "类型转换独立函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】TRY_PARSE(str AS type USING 'en-US')\n【作用】基于 .NET 区域文化（Culture）解析带货币符号或英文月份的文本（如 'Monday, 22 November 2026'、'$1,234.50'）。",
+    "sql": "SELECT TRY_PARSE(N'$1,234.50' AS MONEY USING 'en-US') AS UsdAmt;",
+    "pitfall": "走 CLR 调用性能远低于 TRY_CONVERT，仅在必须解析多国文化格式字符串时使用。"
   }
 ]
