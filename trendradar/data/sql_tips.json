@@ -1482,5 +1482,145 @@
     "scenario": "【语法】CREATE VIEW ... AS SELECT 1; GO\n【作用】SSMS / sqlcmd 客户端批处理分隔符（并非 T-SQL 语言本身关键字），将脚本切分为独立批次提交。",
     "sql": "USE AnalyticsDB;\nGO\nSELECT TOP (10) * FROM dbo.FactOrders;\nGO",
     "pitfall": "局部变量 @var 的生命周期仅限于当前 GO 批处理内，跨 GO 后变量即销毁失效。"
+  },
+  {
+    "title": "SQL 核心语法：INSERT INTO ... SELECT + TABLOCK",
+    "category": "语法字典 · DML核心关键字",
+    "keywords": [
+      "INSERT INTO ... SELECT + TABLOCK",
+      "DML核心关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】INSERT INTO dbo.Tgt WITH (TABLOCK) (cols) SELECT cols FROM dbo.Src;\n【作用】跨表批量写入数据；在 Simple/Bulk-Logged 恢复模式下加 WITH (TABLOCK) 可触发最小化日志（Minimal Logging），提速数倍。",
+    "sql": "INSERT INTO dbo.FactOrdersArchive WITH (TABLOCK) (OrderID, CustomerID, OrderDate, Amount)\nSELECT OrderID, CustomerID, OrderDate, Amount\nFROM dbo.FactOrders\nWHERE OrderDate < '2025-01-01';",
+    "pitfall": "WITH (TABLOCK) 会持有表级排他锁，仅适用于离线 ETL 或空 Staging 表，严禁对线上高并发活跃表使用。"
+  },
+  {
+    "title": "SQL 核心语法：INSERT INTO ... EXEC",
+    "category": "语法字典 · DML核心关键字",
+    "keywords": [
+      "INSERT INTO ... EXEC",
+      "DML核心关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】INSERT INTO #Res EXEC dbo.usp_SomeProc @p1 = 1;\n【作用】将存储过程或动态 SQL 返回的结果集直接落地写入临时表或目标表。",
+    "sql": "CREATE TABLE #ProcResult (OrderID INT, Amount DECIMAL(18,2));\nINSERT INTO #ProcResult (OrderID, Amount)\nEXEC dbo.usp_GetTopOrders @TopN = 50;",
+    "pitfall": "SQL Server 严禁嵌套 INSERT...EXEC（若被调存储过程内部也有 INSERT...EXEC 会直接报错 8164）；需改用表值函数或外层临时表。"
+  },
+  {
+    "title": "SQL 核心语法：UPDATE TOP (N) 分批更新",
+    "category": "语法字典 · DML核心关键字",
+    "keywords": [
+      "UPDATE TOP (N) 分批更新",
+      "DML核心关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】WHILE 1=1 BEGIN UPDATE TOP (5000) dbo.T SET ... WHERE ...; IF @@ROWCOUNT < 5000 BREAK; END\n【作用】千万级大表批量更新字段时按批提交，避免单条 UPDATE 引发锁升级（Table Lock）和事务日志撑爆。",
+    "sql": "DECLARE @Batch INT = 5000;\nWHILE 1 = 1\nBEGIN\n    UPDATE TOP (@Batch) dbo.FactOrders\n    SET IsArchived = 1\n    WHERE OrderDate < '2025-01-01' AND IsArchived = 0;\n    IF @@ROWCOUNT < @Batch BREAK;\n    WAITFOR DELAY '00:00:00.100';\nEND;",
+    "pitfall": "WHERE 条件必须包含“未更新标记”（如 IsArchived = 0），否则循环会反复更新同一批数据陷入死循环！"
+  },
+  {
+    "title": "SQL 核心语法：DELETE ... FROM ... JOIN (关联删除)",
+    "category": "语法字典 · DML核心关键字",
+    "keywords": [
+      "DELETE ... FROM ... JOIN (关联删除)",
+      "DML核心关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】DELETE t FROM dbo.Tgt t INNER JOIN dbo.Src s ON t.ID = s.ID WHERE ...;\n【作用】T-SQL 专属关联删除语法，依据另一张表的匹配条件精准删除目标表记录。",
+    "sql": "DELETE o\nFROM dbo.FactOrders o\nINNER JOIN dbo.DimCustomer c ON o.CustomerID = c.CustomerID\nWHERE c.IsTestAccount = 1;",
+    "pitfall": "DELETE 后紧跟目标表别名（DELETE o），执行前务必把 DELETE o 临时换成 SELECT COUNT(*) 核验命中行数防误删。"
+  },
+  {
+    "title": "SQL 核心语法：BULK INSERT",
+    "category": "语法字典 · DML核心关键字",
+    "keywords": [
+      "BULK INSERT",
+      "DML核心关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】BULK INSERT dbo.Stg FROM 'C:\\data.csv' WITH (FIRSTROW=2, FIELDTERMINATOR=',', ROWTERMINATOR='\\n', TABLOCK);\n【作用】SQL Server 原生高速批量导入平面文件（CSV/TSV），百万行数据秒级入库。",
+    "sql": "BULK INSERT dbo.StgSales\nFROM 'D:\\import\\sales_202611.csv'\nWITH (\n    FIRSTROW = 2,\n    FIELDTERMINATOR = ',',\n    ROWTERMINATOR = '0x0a',\n    CODEPAGE = '65001',\n    TABLOCK\n);",
+    "pitfall": "UTF-8 文件务必加 CODEPAGE = '65001' 防中文乱码；含引号嵌套逗号的复杂 CSV 建议加 FORMAT = 'CSV'（SQL Server 2017+）。"
+  },
+  {
+    "title": "SQL 核心语法：WITH (UPDLOCK, ROWLOCK, READPAST)",
+    "category": "语法字典 · DML并发队列",
+    "keywords": [
+      "WITH (UPDLOCK, ROWLOCK, READPAST)",
+      "DML并发队列",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT TOP (1) ... FROM dbo.JobQueue WITH (UPDLOCK, ROWLOCK, READPAST) WHERE Status = 'New';\n【作用】高并发多 Worker 抢占任务队列的黄金锁提示：UPDLOCK 防死锁，READPAST 自动跳过已被其他 Worker 锁定的行。",
+    "sql": "WITH NextJob AS (\n    SELECT TOP (1) JobID, Status\n    FROM dbo.JobQueue WITH (UPDLOCK, ROWLOCK, READPAST)\n    WHERE Status = 'Pending'\n    ORDER BY CreatedAt ASC\n)\nUPDATE NextJob\nSET Status = 'Running'\nOUTPUT inserted.JobID;",
+    "pitfall": "配合 CTE + UPDATE + OUTPUT 可在单条原子语句中实现零冲突分布式任务出队，性能远超普通悲观锁。"
+  },
+  {
+    "title": "SQL 核心语法：MERGE ... OUTPUT $action",
+    "category": "语法字典 · DML核心关键字",
+    "keywords": [
+      "MERGE ... OUTPUT $action",
+      "DML核心关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】MERGE ... OUTPUT $action AS ActionType, inserted.*, deleted.*;\n【作用】利用 MERGE 专属伪列 $action，精确审计或统计本次同步分别执行了多少次 INSERT / UPDATE / DELETE。",
+    "sql": "DECLARE @Audit TABLE (Act NVARCHAR(10), SKU VARCHAR(50));\nMERGE dbo.DimProd WITH (HOLDLOCK) AS t\nUSING dbo.StgProd AS s ON t.SKU = s.SKU\nWHEN MATCHED THEN UPDATE SET t.Price = s.Price\nWHEN NOT MATCHED THEN INSERT (SKU, Price) VALUES (s.SKU, s.Price)\nOUTPUT $action, inserted.SKU INTO @Audit;\nSELECT Act, COUNT(*) AS Cnt FROM @Audit GROUP BY Act;",
+    "pitfall": "$action 伪列只能在 MERGE 语句的 OUTPUT 子句中使用，普通 INSERT/UPDATE/DELETE 中不可用。"
+  },
+  {
+    "title": "SQL 核心语法：SCD Type 2 维度拉链表 (INSERT + MERGE)",
+    "category": "语法字典 · DML与数仓ETL",
+    "keywords": [
+      "SCD Type 2 维度拉链表 (INSERT + MERGE)",
+      "DML与数仓ETL",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】INSERT INTO Dim SELECT ... FROM (MERGE Dim ... OUTPUT $action, src.*) m WHERE m.Act = 'UPDATE';\n【作用】数仓缓慢变化维（SCD Type 2）单语句原子拉链：过期旧版本（EffectiveTo = Now, IsCurrent = 0）并自动插入新版本。",
+    "sql": "INSERT INTO dbo.DimCustHist (CustKey, Name, EffectiveFrom, IsCurrent)\nSELECT CustKey, Name, SYSUTCDATETIME(), 1\nFROM (\n    MERGE dbo.DimCustHist WITH (HOLDLOCK) AS t\n    USING dbo.StgCust AS s ON t.CustKey = s.CustKey AND t.IsCurrent = 1\n    WHEN MATCHED AND t.Name <> s.Name THEN\n        UPDATE SET t.IsCurrent = 0, t.EffectiveTo = SYSUTCDATETIME()\n    WHEN NOT MATCHED THEN\n        INSERT (CustKey, Name, EffectiveFrom, IsCurrent) VALUES (s.CustKey, s.Name, SYSUTCDATETIME(), 1)\n    OUTPUT $action AS Act, s.CustKey, s.Name\n) AS Changes\nWHERE Changes.Act = 'UPDATE';",
+    "pitfall": "这是 SQL Server 中最经典的 Composable DML 写法，一条语句原子完成闭链与开链，绝不出现双 IsCurrent=1 脏数据。"
+  },
+  {
+    "title": "SQL 核心语法：UPDATE 原子发号器 (SET @var = col = col + 1)",
+    "category": "语法字典 · DML核心关键字",
+    "keywords": [
+      "UPDATE 原子发号器 (SET @var = col = col + 1)",
+      "DML核心关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】UPDATE dbo.SeqTable SET @NextVal = CurrentVal = CurrentVal + 1 WHERE SeqName = 'OrderNo';\n【作用】T-SQL 专属单语句原子自增并取回新值，避免先 SELECT 再 UPDATE 引发的并发重号竞态。",
+    "sql": "DECLARE @NextNo BIGINT;\nUPDATE dbo.SeqCounter\nSET @NextNo = LastNo = LastNo + 1\nWHERE SeqKey = 'INVOICE_2026';\nSELECT @NextNo AS NewInvoiceNo;",
+    "pitfall": "SQL Server 2012+ 简单自增序列也可直接使用原生对象 CREATE SEQUENCE + NEXT VALUE FOR，性能更高且不锁表。"
+  },
+  {
+    "title": "SQL 核心语法：INSERT ... DEFAULT VALUES",
+    "category": "语法字典 · DML核心关键字",
+    "keywords": [
+      "INSERT ... DEFAULT VALUES",
+      "DML核心关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】INSERT INTO dbo.tbl DEFAULT VALUES;\n【作用】所有列均使用默认约束（DEFAULT）或自增（IDENTITY）快速插入一行占位/初始化记录。",
+    "sql": "INSERT INTO dbo.BatchRunLog DEFAULT VALUES;\nSELECT SCOPE_IDENTITY() AS NewBatchID;",
+    "pitfall": "表中所有非自增、非可空列都必须定义了 DEFAULT 约束，否则执行会报错。"
   }
 ]
