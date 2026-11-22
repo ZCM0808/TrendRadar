@@ -83,7 +83,7 @@ platforms:
 # 2.8 数据源 - World Monitor 全球地缘与宏观战略情报
 # ===============================================================
 worldmonitor:
-  enabled: true                       # 是否启用 World Monitor 采集
+  enabled: false                      # 是否启用 World Monitor 采集
   proxy_url: ""                       # 代理地址（留空为直连，CI/GitHub Actions 推荐留空；本地有需要可填如 http://127.0.0.1:3067）
   timeout: 15                         # 请求超时（秒）
   show_cii: false                     # 是否展示高危国家/不稳定指数(CII)（false=关闭过滤）
@@ -117,19 +117,32 @@ rss:
   # - 正整数：覆盖全局设置，只推送此天数内的文章
   # - 0：禁用此频道的新鲜度过滤，推送所有文章
   feeds:
+    - id: "sqlbi"
+      name: "SQLBI (DAX and Tabular)"
+      url: "https://www.sqlbi.com/feed/"
+      enabled: true
+      max_age_days: 7                 # 专业技术博客更新频率较低，保留7天内优质干货
+
+    - id: "powerbi-blog"
+      name: "Microsoft Power BI Blog"
+      url: "https://powerbi.microsoft.com/en-us/blog/feed/"
+      enabled: true
+      max_age_days: 5                 # 微软官方产品与功能月更速报
+
+    - id: "fabric-blog"
+      name: "Microsoft Fabric Blog"
+      url: "https://blog.fabric.microsoft.com/en-us/blog/feed/"
+      enabled: true
+      max_age_days: 5                 # 企业级 Fabric 与数据湖治理动态
+
     - id: "hacker-news"
       name: "Hacker News"
       url: "https://hnrss.org/frontpage"
+      enabled: false
 
     - id: "ruanyifeng"
       name: "阮一峰的网络日志"
       url: "http://www.ruanyifeng.com/blog/atom.xml"
-      enabled: false                  # 禁用
-      # max_age_days: 3               # 示例：推送 3 天内的文章（更新较慢的博客）
-     
-    - id: "yahoo-finance"
-      name: "雅虎财经"
-      url: "https://finance.yahoo.com/news/rssindex"
       enabled: false
 
     # 自定义源示例
@@ -253,23 +266,22 @@ display:
   # 调整顺序：剪切粘贴整行即可
   # 要显示某个区域，需同时：1. 在此列表中  2. 下方 regions 对应开关为 true
   region_order:
-    - worldmonitor                        # 🌍 World Monitor 全球态势与宏观战略情报
-    - ai_analysis                         # 1️⃣ AI 分析总结（宏观脉络+蝴蝶效应推演）
-    - hotlist                             # 2️⃣ 精选热榜速览（紧凑展示）
-    - rss                                 # 3️⃣ 精选 RSS 订阅（紧凑展示）
+    - rss                                 # 1️⃣ 精选技术动态（SQLBI / Power BI / Fabric）
+    - ai_analysis                         # 2️⃣ AI 战略内参（宏观脉络+蝴蝶效应推演）
+    - hotlist                             # 3️⃣ 精选热榜速览（紧凑展示）
     - new_items                           # 4️⃣ 新增热点区域
     - standalone                          # 5️⃣ 独立展示区
     - dax                                 # 6️⃣ 每日 Power BI DAX 技巧精粹
 
   # 推送区域开关（需配合上方 region_order 使用）
   regions:
-    worldmonitor: true                # World Monitor 全球地缘态势与战略情报（true=显示, false=隐藏）
+    worldmonitor: false               # World Monitor 全球地缘态势与战略情报（已停用替换）
     ai_analysis: true                 # AI 分析区域（包含宏观脉络总结与蝴蝶效应推演）（true=显示, false=隐藏）
     hotlist: false                    # 热榜区域明细列表（true=前置展示新闻链接，AI分析仍会全量接收并总结）
     new_items: false                  # 新增热点区域：含热榜新增 + RSS 新增（true=显示, false=隐藏）
                                       # 注：热点词汇统计中的新增标记🆕不受此配置影响
 
-    rss: false                        # RSS 订阅区域（前置展示新闻链接）
+    rss: true                         # RSS 订阅区域（展示 SQLBI 与微软官方 Power BI/Fabric 专栏）
                                       # 开启后将对 RSS 进行关键词分析并在通知中展示
                                       # 关闭后跳过分析，但独立展示区不受影响
 
