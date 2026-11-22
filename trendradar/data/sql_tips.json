@@ -334,5 +334,761 @@
     "scenario": "复杂 ETL 或多步报表计算需要落地中间结果集时，如何避免优化器严重低估行数。",
     "sql": "CREATE TABLE #StageSales (\n    CustomerID INT NOT NULL,\n    TotalAmt   DECIMAL(18, 2) NOT NULL,\n    PRIMARY KEY CLUSTERED (CustomerID)\n);\n\nINSERT INTO #StageSales (CustomerID, TotalAmt)\nSELECT CustomerID, SUM(Amount)\nFROM dbo.FactOrders\nGROUP BY CustomerID;",
     "pitfall": "表变量 @t 没有列统计信息（旧版恒估 1 行），一旦超过几百行极易选错 Nested Loops 导致慢百倍；中间结果超 100 行一律优先用 #Temp 临时表并建聚集索引。"
+  },
+  {
+    "title": "SQL 核心语法：WITH (CTE)",
+    "category": "语法字典 · 查询与CTE关键字",
+    "keywords": [
+      "WITH (CTE)",
+      "查询与CTE关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】WITH cte_name AS (SELECT ...) SELECT * FROM cte_name;\n【作用】公用表表达式，将复杂子查询模块化并支持递归查询。",
+    "sql": "WITH ActiveCust AS (\n    SELECT CustomerID, Region FROM dbo.DimCustomer WHERE IsActive = 1\n)\nSELECT Region, COUNT(*) AS Cnt FROM ActiveCust GROUP BY Region;",
+    "pitfall": "SQL Server 中 CTE 不会被自动物化（每次引用都会重算）；若被多次引用且成本高，应改用 #Temp 临时表。"
+  },
+  {
+    "title": "SQL 核心语法：SELECT DISTINCT",
+    "category": "语法字典 · 查询与CTE关键字",
+    "keywords": [
+      "SELECT DISTINCT",
+      "查询与CTE关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT DISTINCT col1, col2 FROM table;\n【作用】对结果集按所选列组合去重。",
+    "sql": "SELECT DISTINCT CustomerID, Region FROM dbo.FactOrders;",
+    "pitfall": "DISTINCT 会触发 Sort 或 Hash Match 聚合；不要用 DISTINCT 掩盖因 JOIN 漏条件导致的数据膨胀。"
+  },
+  {
+    "title": "SQL 核心语法：TOP / TOP WITH TIES",
+    "category": "语法字典 · 查询与CTE关键字",
+    "keywords": [
+      "TOP / TOP WITH TIES",
+      "查询与CTE关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT TOP (N) [PERCENT] [WITH TIES] cols FROM table ORDER BY col;\n【作用】限制返回前 N 行；WITH TIES 会一并返回与第 N 行排序值并列的记录。",
+    "sql": "SELECT TOP (5) WITH TIES ProductID, SalesAmt\nFROM dbo.ProductSales\nORDER BY SalesAmt DESC;",
+    "pitfall": "使用 TOP 不带 ORDER BY 时返回顺序不确定；WITH TIES 必须配合 ORDER BY 使用。"
+  },
+  {
+    "title": "SQL 核心语法：OFFSET ... FETCH NEXT",
+    "category": "语法字典 · 查询与CTE关键字",
+    "keywords": [
+      "OFFSET ... FETCH NEXT",
+      "查询与CTE关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】ORDER BY col OFFSET M ROWS FETCH NEXT N ROWS ONLY;\n【作用】标准 SQL 分页语法，跳过前 M 行并取接下来的 N 行。",
+    "sql": "SELECT OrderID, OrderDate, Amount\nFROM dbo.FactOrders\nORDER BY OrderDate DESC, OrderID DESC\nOFFSET 100 ROWS FETCH NEXT 20 ROWS ONLY;",
+    "pitfall": "深度分页（OFFSET 很大）会扫描并丢弃大量行导致性能急剧下降，大表深翻页应改用 Keyset 游标分页。"
+  },
+  {
+    "title": "SQL 核心语法：WHERE",
+    "category": "语法字典 · 查询与CTE关键字",
+    "keywords": [
+      "WHERE",
+      "查询与CTE关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】WHERE predicate1 AND/OR predicate2\n【作用】在分组聚合之前对原始行进行过滤。",
+    "sql": "SELECT OrderID, Amount FROM dbo.FactOrders\nWHERE OrderDate >= '2026-01-01' AND OrderStatus = 'Paid';",
+    "pitfall": "WHERE 子句中禁止使用聚合函数（应用 HAVING），且禁止对索引列套函数以免破坏 SARGability。"
+  },
+  {
+    "title": "SQL 核心语法：GROUP BY",
+    "category": "语法字典 · 查询与CTE关键字",
+    "keywords": [
+      "GROUP BY",
+      "查询与CTE关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】GROUP BY col1, col2\n【作用】按指定维度列分组并配合聚合函数计算汇总指标。",
+    "sql": "SELECT Region, YEAR(OrderDate) AS Yr, SUM(Amount) AS TotalAmt\nFROM dbo.FactOrders\nGROUP BY Region, YEAR(OrderDate);",
+    "pitfall": "SELECT 列表中所有非聚合列都必须出现在 GROUP BY 中。"
+  },
+  {
+    "title": "SQL 核心语法：HAVING",
+    "category": "语法字典 · 查询与CTE关键字",
+    "keywords": [
+      "HAVING",
+      "查询与CTE关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】GROUP BY col HAVING agg_func(col) > val\n【作用】对 GROUP BY 聚合后的分组结果进行二次筛选。",
+    "sql": "SELECT CustomerID, COUNT(*) AS OrderCnt\nFROM dbo.FactOrders\nGROUP BY CustomerID\nHAVING COUNT(*) >= 10;",
+    "pitfall": "能放在 WHERE 的行级过滤绝不放到 HAVING，否则会先聚合大量无效数据再丢弃。"
+  },
+  {
+    "title": "SQL 核心语法：ORDER BY",
+    "category": "语法字典 · 查询与CTE关键字",
+    "keywords": [
+      "ORDER BY",
+      "查询与CTE关键字",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】ORDER BY col1 ASC, col2 DESC\n【作用】对最终结果集排序（默认 ASC 升序）。",
+    "sql": "SELECT OrderID, Amount FROM dbo.FactOrders ORDER BY Amount DESC, OrderID ASC;",
+    "pitfall": "SQL Server 排序默认 NULL 排在最前面（ASC 时）；视图中除非带 TOP/OFFSET 否则不允许 ORDER BY。"
+  },
+  {
+    "title": "SQL 核心语法：INNER JOIN",
+    "category": "语法字典 · 关联与集合运算",
+    "keywords": [
+      "INNER JOIN",
+      "关联与集合运算",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】FROM A INNER JOIN B ON A.key = B.key\n【作用】内连接，仅返回两表关联键完全匹配的行。",
+    "sql": "SELECT o.OrderID, c.CustomerName\nFROM dbo.FactOrders o\nINNER JOIN dbo.DimCustomer c ON o.CustomerID = c.CustomerID;",
+    "pitfall": "多对多关联会导致行数笛卡尔乘积膨胀，聚合前务必确认维度表关联键唯一。"
+  },
+  {
+    "title": "SQL 核心语法：LEFT JOIN",
+    "category": "语法字典 · 关联与集合运算",
+    "keywords": [
+      "LEFT JOIN",
+      "关联与集合运算",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】FROM A LEFT OUTER JOIN B ON A.key = B.key\n【作用】左外连接，保留左表全部行，右表无匹配时补 NULL。",
+    "sql": "SELECT c.CustomerID, o.OrderID\nFROM dbo.DimCustomer c\nLEFT JOIN dbo.FactOrders o\n  ON c.CustomerID = o.CustomerID AND o.OrderDate >= '2026-01-01';",
+    "pitfall": "对右表的过滤条件若写在 WHERE 中会把 LEFT JOIN 隐式退化为 INNER JOIN，必须写在 ON 子句中！"
+  },
+  {
+    "title": "SQL 核心语法：FULL OUTER JOIN",
+    "category": "语法字典 · 关联与集合运算",
+    "keywords": [
+      "FULL OUTER JOIN",
+      "关联与集合运算",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】FROM A FULL OUTER JOIN B ON A.key = B.key\n【作用】全外连接，同时保留左右两表未匹配的行，常用于双表对账找差异。",
+    "sql": "SELECT COALESCE(a.ID, b.ID) AS ID, a.Amt AS SrcAmt, b.Amt AS TgtAmt\nFROM dbo.SrcTable a\nFULL OUTER JOIN dbo.TgtTable b ON a.ID = b.ID\nWHERE a.ID IS NULL OR b.ID IS NULL OR a.Amt <> b.Amt;",
+    "pitfall": "结果列中左右键都可能为 NULL，输出主键务必用 COALESCE(a.ID, b.ID)。"
+  },
+  {
+    "title": "SQL 核心语法：CROSS JOIN",
+    "category": "语法字典 · 关联与集合运算",
+    "keywords": [
+      "CROSS JOIN",
+      "关联与集合运算",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】FROM A CROSS JOIN B\n【作用】笛卡尔积，常用于生成“全日期 x 全门店”骨架表补齐零销量记录。",
+    "sql": "SELECT d.DateKey, s.StoreID\nFROM dbo.DimDate d\nCROSS JOIN dbo.DimStore s\nWHERE d.Year = 2026;",
+    "pitfall": "严禁对两张大表无条件 CROSS JOIN，行数会呈 M*N 爆炸。"
+  },
+  {
+    "title": "SQL 核心语法：CROSS APPLY / OUTER APPLY",
+    "category": "语法字典 · 关联与集合运算",
+    "keywords": [
+      "CROSS APPLY / OUTER APPLY",
+      "关联与集合运算",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】FROM A CROSS/OUTER APPLY (SELECT ... WHERE inner.k = A.k) x\n【作用】对左表每一行动态执行右表表值函数或相关子查询（行级 Top N 神器）。",
+    "sql": "SELECT c.CustomerID, o.OrderID, o.Amount\nFROM dbo.DimCustomer c\nOUTER APPLY (SELECT TOP (1) OrderID, Amount FROM dbo.FactOrders f WHERE f.CustomerID = c.CustomerID ORDER BY f.OrderDate DESC) o;",
+    "pitfall": "内表必须有对应索引，否则外层每行扫一次内表会导致性能雪崩。"
+  },
+  {
+    "title": "SQL 核心语法：UNION vs UNION ALL",
+    "category": "语法字典 · 关联与集合运算",
+    "keywords": [
+      "UNION vs UNION ALL",
+      "关联与集合运算",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT ... UNION [ALL] SELECT ...\n【作用】纵向合并两个列数与类型兼容的结果集；UNION 会排序去重，UNION ALL 直接拼接。",
+    "sql": "SELECT OrderID, Amount FROM dbo.Orders_2025\nUNION ALL\nSELECT OrderID, Amount FROM dbo.Orders_2026;",
+    "pitfall": "只要确认无需去重，100% 优先用 UNION ALL，避免无谓的 Sort/Distinct 性能开销。"
+  },
+  {
+    "title": "SQL 核心语法：INTERSECT",
+    "category": "语法字典 · 关联与集合运算",
+    "keywords": [
+      "INTERSECT",
+      "关联与集合运算",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT cols FROM A INTERSECT SELECT cols FROM B\n【作用】返回两个结果集的交集（自动去重，且把 NULL 视为相等）。",
+    "sql": "SELECT CustomerID FROM dbo.Orders_2025\nINTERSECT\nSELECT CustomerID FROM dbo.Orders_2026;",
+    "pitfall": "比 INNER JOIN 更安全地处理含 NULL 列的集合交集对比。"
+  },
+  {
+    "title": "SQL 核心语法：EXCEPT",
+    "category": "语法字典 · 关联与集合运算",
+    "keywords": [
+      "EXCEPT",
+      "关联与集合运算",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT cols FROM A EXCEPT SELECT cols FROM B\n【作用】返回在左结果集中存在、但右结果集中不存在的差集（自动去重）。",
+    "sql": "SELECT CustomerID FROM dbo.Orders_2025\nEXCEPT\nSELECT CustomerID FROM dbo.Orders_2026;",
+    "pitfall": "适合快速排查流失客户或校验两张表数据差异，自动将 NULL=NULL 视为匹配。"
+  },
+  {
+    "title": "SQL 核心语法：EXISTS / NOT EXISTS",
+    "category": "语法字典 · 关联与集合运算",
+    "keywords": [
+      "EXISTS / NOT EXISTS",
+      "关联与集合运算",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】WHERE [NOT] EXISTS (SELECT 1 FROM B WHERE B.k = A.k)\n【作用】半连接判断是否存在满足条件的关联行，匹配到第一行即短路返回。",
+    "sql": "SELECT c.CustomerID FROM dbo.DimCustomer c\nWHERE NOT EXISTS (SELECT 1 FROM dbo.FactOrders o WHERE o.CustomerID = c.CustomerID);",
+    "pitfall": "NOT EXISTS 免疫子查询中的 NULL 值，永远优于 NOT IN。"
+  },
+  {
+    "title": "SQL 核心语法：IN / NOT IN",
+    "category": "语法字典 · 关联与集合运算",
+    "keywords": [
+      "IN / NOT IN",
+      "关联与集合运算",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】WHERE col [NOT] IN (v1, v2, ...)\n【作用】判断列值是否属于指定常量列表或子查询结果集。",
+    "sql": "SELECT OrderID FROM dbo.FactOrders WHERE Region IN (N'华东', N'华北');",
+    "pitfall": "子查询含 NULL 时 NOT IN 会返回空集；常量列表超过数千项时应改用临时表/TVP JOIN。"
+  },
+  {
+    "title": "SQL 核心语法：ROW_NUMBER()",
+    "category": "语法字典 · 窗口函数",
+    "keywords": [
+      "ROW_NUMBER()",
+      "窗口函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】ROW_NUMBER() OVER ([PARTITION BY ...] ORDER BY ...)\n【作用】为分区内每行分配严格连续唯一序号（1, 2, 3...），用于去重与分组 Top N。",
+    "sql": "SELECT *, ROW_NUMBER() OVER (PARTITION BY CustomerID ORDER BY OrderDate DESC, OrderID DESC) AS rn\nFROM dbo.FactOrders;",
+    "pitfall": "排序列有重复值时必须追加唯一键打破平局，否则每次执行顺序可能漂移。"
+  },
+  {
+    "title": "SQL 核心语法：RANK() / DENSE_RANK()",
+    "category": "语法字典 · 窗口函数",
+    "keywords": [
+      "RANK() / DENSE_RANK()",
+      "窗口函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】RANK() / DENSE_RANK() OVER ([PARTITION BY ...] ORDER BY ...)\n【作用】并列排名：RANK 并列跳号（1,1,3），DENSE_RANK 并列不跳号（1,1,2）。",
+    "sql": "SELECT SalesRep, Revenue,\n       RANK() OVER (ORDER BY Revenue DESC) AS rnk,\n       DENSE_RANK() OVER (ORDER BY Revenue DESC) AS drnk\nFROM dbo.RepSales;",
+    "pitfall": "取“销售额前三名（含并列）”时应用 DENSE_RANK() <= 3。"
+  },
+  {
+    "title": "SQL 核心语法：NTILE(N)",
+    "category": "语法字典 · 窗口函数",
+    "keywords": [
+      "NTILE(N)",
+      "窗口函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】NTILE(4) OVER ([PARTITION BY ...] ORDER BY ...)\n【作用】将分区内有序行均匀切分为 N 个桶（如四分位/十分位客户分层）。",
+    "sql": "SELECT CustomerID, TotalSpend,\n       NTILE(4) OVER (ORDER BY TotalSpend DESC) AS Quartile\nFROM dbo.CustomerSpend;",
+    "pitfall": "总行数不能被 N 整除时，前面几个桶会比后面多 1 行，且相同值可能被拆进相邻两桶。"
+  },
+  {
+    "title": "SQL 核心语法：LAG() / LEAD()",
+    "category": "语法字典 · 窗口函数",
+    "keywords": [
+      "LAG() / LEAD()",
+      "窗口函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】LAG(col, offset, default) OVER ([PARTITION BY ...] ORDER BY ...)\n【作用】无需自连接直接读取当前行之前（LAG）或之后（LEAD）第 offset 行的值。",
+    "sql": "SELECT YearMonth, Sales,\n       LAG(Sales, 1, 0) OVER (ORDER BY YearMonth) AS PrevSales\nFROM dbo.MonthlySales;",
+    "pitfall": "时间序列存在缺失月份时，LAG(col,1) 取的是物理上一行而非严格上个月，需先补齐日期维表。"
+  },
+  {
+    "title": "SQL 核心语法：FIRST_VALUE() / LAST_VALUE()",
+    "category": "语法字典 · 窗口函数",
+    "keywords": [
+      "FIRST_VALUE() / LAST_VALUE()",
+      "窗口函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】FIRST_VALUE(col) / LAST_VALUE(col) OVER (... ROWS BETWEEN ...)\n【作用】取窗口帧内的第一个值或最后一个值。",
+    "sql": "SELECT ProductID, PriceDate, Price,\n       LAST_VALUE(Price) OVER (PARTITION BY ProductID ORDER BY PriceDate ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS EndPrice\nFROM dbo.PriceHistory;",
+    "pitfall": "LAST_VALUE 必须显式指定 UNBOUNDED FOLLOWING，否则默认帧止于当前行导致失效。"
+  },
+  {
+    "title": "SQL 核心语法：SUM() / AVG() OVER",
+    "category": "语法字典 · 窗口函数",
+    "keywords": [
+      "SUM() / AVG() OVER",
+      "窗口函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SUM(col) OVER (PARTITION BY ... ORDER BY ... ROWS BETWEEN ...)\n【作用】在保留明细行的同时计算分组汇总、占比、YTD 累计或滚动均值。",
+    "sql": "SELECT OrderID, Region, Amount,\n       Amount * 100.0 / SUM(Amount) OVER (PARTITION BY Region) AS RegionSharePct\nFROM dbo.FactOrders;",
+    "pitfall": "带 ORDER BY 做累计时务必显式写 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW，避免默认 RANGE 触发磁盘 Spool。"
+  },
+  {
+    "title": "SQL 核心语法：PERCENT_RANK() / CUME_DIST()",
+    "category": "语法字典 · 窗口函数",
+    "keywords": [
+      "PERCENT_RANK() / CUME_DIST()",
+      "窗口函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】PERCENT_RANK() / CUME_DIST() OVER ([PARTITION BY ...] ORDER BY ...)\n【作用】计算当前行在分区内的相对百分比排名（0~1）与累积分布比例。",
+    "sql": "SELECT EmpID, Salary,\n       CAST(PERCENT_RANK() OVER (PARTITION BY DeptID ORDER BY Salary) * 100 AS DECIMAL(5,1)) AS PctRank\nFROM dbo.Employees;",
+    "pitfall": "PERCENT_RANK 第一行恒为 0，CUME_DIST 恒 > 0 且最大为 1。"
+  },
+  {
+    "title": "SQL 核心语法：PERCENTILE_CONT / PERCENTILE_DISC",
+    "category": "语法字典 · 窗口函数",
+    "keywords": [
+      "PERCENTILE_CONT / PERCENTILE_DISC",
+      "窗口函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY col) OVER (PARTITION BY ...)\n【作用】计算连续插值分位数（如精确中位数）或离散分位数。",
+    "sql": "SELECT DISTINCT DeptID,\n       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY Salary) OVER (PARTITION BY DeptID) AS MedianSalary\nFROM dbo.Employees;",
+    "pitfall": "只能作为窗口函数使用，不能直接和 GROUP BY 混用。"
+  },
+  {
+    "title": "SQL 核心语法：COUNT(*) vs COUNT(col) vs COUNT(DISTINCT col)",
+    "category": "语法字典 · 聚合函数",
+    "keywords": [
+      "COUNT(*) vs COUNT(col) vs COUNT(DISTINCT col)",
+      "聚合函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】COUNT(*) / COUNT(col) / COUNT(DISTINCT col)\n【作用】COUNT(*) 计全部行；COUNT(col) 忽略 NULL；COUNT(DISTINCT col) 去重计数。",
+    "sql": "SELECT Region, COUNT(*) AS TotalRows, COUNT(ShipDate) AS ShippedRows, COUNT(DISTINCT CustomerID) AS UniqueCust\nFROM dbo.FactOrders GROUP BY Region;",
+    "pitfall": "超大表超 21 亿行需用 COUNT_BIG；近似去重计数（允许 2% 误差）可用 APPROX_COUNT_DISTINCT 极速完成。"
+  },
+  {
+    "title": "SQL 核心语法：SUM / AVG / MIN / MAX",
+    "category": "语法字典 · 聚合函数",
+    "keywords": [
+      "SUM / AVG / MIN / MAX",
+      "聚合函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SUM(col) / AVG(col) / MIN(col) / MAX(col)\n【作用】基础聚合函数，全部自动忽略 NULL 值。",
+    "sql": "SELECT Category, SUM(Qty) AS TotalQty, AVG(CAST(Price AS DECIMAL(18,2))) AS AvgPrice\nFROM dbo.FactSales GROUP BY Category;",
+    "pitfall": "AVG(整数列) 在 SQL Server 中执行整数除法会截断小数！务必先 CAST 为 DECIMAL/FLOAT；且全为 NULL 时返回 NULL。"
+  },
+  {
+    "title": "SQL 核心语法：ROLLUP / CUBE / GROUPING SETS",
+    "category": "语法字典 · 聚合函数",
+    "keywords": [
+      "ROLLUP / CUBE / GROUPING SETS",
+      "聚合函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】GROUP BY ROLLUP (a, b) / GROUPING SETS ((a,b), (a), ())\n【作用】单次扫描输出多层级小计与总计。",
+    "sql": "SELECT COALESCE(Region, N'总计') AS Region, COALESCE(Category, N'小计') AS Category, SUM(Amount) AS Amt\nFROM dbo.FactSales\nGROUP BY GROUPING SETS ((Region, Category), (Region), ());",
+    "pitfall": "务必用 GROUPING(col) = 1 区分聚合小计行与真实 NULL 数据行。"
+  },
+  {
+    "title": "SQL 核心语法：PIVOT / UNPIVOT",
+    "category": "语法字典 · 聚合函数",
+    "keywords": [
+      "PIVOT / UNPIVOT",
+      "聚合函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT ... FROM src PIVOT (SUM(val) FOR col IN ([Q1],[Q2],[Q3],[Q4])) p\n【作用】行转列（PIVOT）与列转行（UNPIVOT）。",
+    "sql": "SELECT Region, [2025], [2026]\nFROM (SELECT Region, YEAR(OrderDate) AS Yr, Amount FROM dbo.FactOrders) s\nPIVOT (SUM(Amount) FOR Yr IN ([2025], [2026])) p;",
+    "pitfall": "PIVOT 列名必须静态写死且源子查询不能有多余列（多余列会被隐式当作 GROUP BY 键）；多指标行转列推荐用条件聚合 SUM(CASE WHEN)。"
+  },
+  {
+    "title": "SQL 核心语法：CASE WHEN",
+    "category": "语法字典 · 条件与空值函数",
+    "keywords": [
+      "CASE WHEN",
+      "条件与空值函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】CASE WHEN cond1 THEN r1 ELSE r_default END\n【作用】标准条件分支表达式，支持搜索型与简单型。",
+    "sql": "SELECT OrderID,\n       CASE WHEN Amount >= 10000 THEN N'大单'\n            WHEN Amount >= 1000  THEN N'中单'\n            ELSE N'小单' END AS OrderTier\nFROM dbo.FactOrders;",
+    "pitfall": "按从上到下短路匹配；不写 ELSE 时默认返回 NULL；所有分支返回值类型必须兼容（按优先级隐式转换）。"
+  },
+  {
+    "title": "SQL 核心语法：IIF()",
+    "category": "语法字典 · 条件与空值函数",
+    "keywords": [
+      "IIF()",
+      "条件与空值函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】IIF(boolean_expr, true_value, false_value)\n【作用】单条件三元判断简写（底层自动翻译为 CASE WHEN）。",
+    "sql": "SELECT OrderID, IIF(Amount > 0, N'正向', N'退单') AS Dir FROM dbo.FactOrders;",
+    "pitfall": "多层嵌套 IIF 可读性差，超过 2 层分支一律改写为 CASE WHEN。"
+  },
+  {
+    "title": "SQL 核心语法：COALESCE() vs ISNULL()",
+    "category": "语法字典 · 条件与空值函数",
+    "keywords": [
+      "COALESCE() vs ISNULL()",
+      "条件与空值函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】COALESCE(e1, e2, ...) / ISNULL(expr, replacement)\n【作用】返回首个非 NULL 值；COALESCE 为 ANSI 标准支持多参数，ISNULL 为 T-SQL 专属双参数。",
+    "sql": "SELECT COALESCE(MobilePhone, OfficePhone, N'未留电话') AS Contact FROM dbo.DimCustomer;",
+    "pitfall": "ISNULL 返回类型取第 1 参数类型（可能截断第 2 参数长字符串！）；COALESCE 按最高优先级推导类型，但非确定性子查询会被求值两次。"
+  },
+  {
+    "title": "SQL 核心语法：NULLIF()",
+    "category": "语法字典 · 条件与空值函数",
+    "keywords": [
+      "NULLIF()",
+      "条件与空值函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】NULLIF(expr1, expr2)\n【作用】两值相等时返回 NULL，否则返回 expr1；防除零核心利器。",
+    "sql": "SELECT Revenue / NULLIF(OrderCount, 0) AS AOV FROM dbo.DailyKPI;",
+    "pitfall": "比写 CASE WHEN denom = 0 THEN NULL ELSE num/denom END 更简洁直观。"
+  },
+  {
+    "title": "SQL 核心语法：CAST / CONVERT / TRY_CAST / TRY_CONVERT",
+    "category": "语法字典 · 类型与日期函数",
+    "keywords": [
+      "CAST / CONVERT / TRY_CAST / TRY_CONVERT",
+      "类型与日期函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】TRY_CONVERT(target_type, expr [, style])\n【作用】显式数据类型转换；TRY_ 前缀版本在转换失败时安全返回 NULL 而非抛错。",
+    "sql": "SELECT TRY_CONVERT(DATE, '2026-11-22', 23) AS Dt, TRY_CAST('abc' AS INT) AS SafeInt;",
+    "pitfall": "ETL 清洗外部脏数据一律用 TRY_CAST / TRY_CONVERT，避免单行异常中断整批任务。"
+  },
+  {
+    "title": "SQL 核心语法：DATEADD / DATEDIFF",
+    "category": "语法字典 · 类型与日期函数",
+    "keywords": [
+      "DATEADD / DATEDIFF",
+      "类型与日期函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】DATEADD(part, num, date) / DATEDIFF(part, start, end)\n【作用】日期加减与跨边界计数（支持 YEAR/QUARTER/MONTH/DAY/HOUR/MINUTE/SECOND）。",
+    "sql": "SELECT DATEADD(DAY, -7, CAST(GETDATE() AS DATE)) AS Last7Days,\n       DATEDIFF(DAY, OrderDate, ShipDate) AS LeadDays\nFROM dbo.FactOrders;",
+    "pitfall": "DATEDIFF 计算的是跨过的边界数而非满 24 小时（23:59 到次日 00:01 的 DATEDIFF(DAY)=1）；超 68 年秒差需用 DATEDIFF_BIG。"
+  },
+  {
+    "title": "SQL 核心语法：DATETRUNC() / EOMONTH()",
+    "category": "语法字典 · 类型与日期函数",
+    "keywords": [
+      "DATETRUNC() / EOMONTH()",
+      "类型与日期函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】DATETRUNC(month, dt) / EOMONTH(dt [, month_to_add])\n【作用】DATETRUNC（SQL Server 2022+）按月/周/季截断取首日；EOMONTH 取月末最后一天。",
+    "sql": "SELECT DATETRUNC(MONTH, OrderDate) AS MonthStart,\n       EOMONTH(OrderDate) AS MonthEnd\nFROM dbo.FactOrders;",
+    "pitfall": "旧版 SQL Server 取月初可用 DATEFROMPARTS(YEAR(dt), MONTH(dt), 1) 或 DATEADD(MONTH, DATEDIFF(MONTH, 0, dt), 0)。"
+  },
+  {
+    "title": "SQL 核心语法：AT TIME ZONE",
+    "category": "语法字典 · 类型与日期函数",
+    "keywords": [
+      "AT TIME ZONE",
+      "类型与日期函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】dt AT TIME ZONE 'UTC' AT TIME ZONE 'China Standard Time'\n【作用】原生跨时区转换（自动处理夏令时 DST），跨国业务必备。",
+    "sql": "SELECT CreatedUtc AT TIME ZONE 'UTC' AT TIME ZONE 'China Standard Time' AS CreatedBeijing\nFROM dbo.GlobalEvents;",
+    "pitfall": "对无时区偏移的 DATETIME2 首次使用 AT TIME ZONE 是“声明原时区”，第二次才是“转换目标时区”。"
+  },
+  {
+    "title": "SQL 核心语法：FORMAT()",
+    "category": "语法字典 · 类型与日期函数",
+    "keywords": [
+      "FORMAT()",
+      "类型与日期函数",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】FORMAT(value, 'yyyy-MM-dd' [, culture])\n【作用】基于 .NET CLR 的灵活日期/货币格式化函数。",
+    "sql": "SELECT FORMAT(OrderDate, 'yyyy-MM') AS YM, FORMAT(Amount, 'N2') AS AmtFmt FROM dbo.FactOrders;",
+    "pitfall": "FORMAT 走 CLR 调用开销极大，百万行大表禁止在查询/WHERE 中使用 FORMAT，应改用 CONVERT(VARCHAR(7), dt, 120)。"
+  },
+  {
+    "title": "SQL 核心语法：STRING_AGG()",
+    "category": "语法字典 · 字符串与JSON",
+    "keywords": [
+      "STRING_AGG()",
+      "字符串与JSON",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】STRING_AGG(expr, ',') WITHIN GROUP (ORDER BY col)\n【作用】分组字符串聚合拼接（SQL Server 2017+）。",
+    "sql": "SELECT OrderID, STRING_AGG(CAST(SKU AS NVARCHAR(MAX)), ',') WITHIN GROUP (ORDER BY LineNo) AS SKUs\nFROM dbo.FactOrderLines GROUP BY OrderID;",
+    "pitfall": "超过 8000 字节会直接报错，务必先 CAST 为 NVARCHAR(MAX)。"
+  },
+  {
+    "title": "SQL 核心语法：STRING_SPLIT()",
+    "category": "语法字典 · 字符串与JSON",
+    "keywords": [
+      "STRING_SPLIT()",
+      "字符串与JSON",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】STRING_SPLIT(string, separator [, enable_ordinal])\n【作用】表值函数，将逗号分隔字符串拆分为多行（SQL Server 2022 支持 enable_ordinal 返回序号）。",
+    "sql": "SELECT value AS Tag, ordinal FROM STRING_SPLIT(N'SQL,DAX,PowerBI', N',', 1);",
+    "pitfall": "未传 enable_ordinal=1 时不保证返回顺序。"
+  },
+  {
+    "title": "SQL 核心语法：CHARINDEX / PATINDEX / SUBSTRING / STUFF",
+    "category": "语法字典 · 字符串与JSON",
+    "keywords": [
+      "CHARINDEX / PATINDEX / SUBSTRING / STUFF",
+      "字符串与JSON",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SUBSTRING(s, start, len) / STUFF(s, start, len, repl)\n【作用】子串定位、截取与指定位置替换（SQL 索引从 1 开始）。",
+    "sql": "SELECT SUBSTRING(Email, CHARINDEX('@', Email) + 1, LEN(Email)) AS Domain\nFROM dbo.DimCustomer WHERE CHARINDEX('@', Email) > 0;",
+    "pitfall": "CHARINDEX 找不到时返回 0，直接做减法传给 LEFT(..., idx-1) 会报长度非法错，务必先判断 > 0 或用 NULLIF(..., 0)。"
+  },
+  {
+    "title": "SQL 核心语法：CONCAT / CONCAT_WS",
+    "category": "语法字典 · 字符串与JSON",
+    "keywords": [
+      "CONCAT / CONCAT_WS",
+      "字符串与JSON",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】CONCAT(a, b, ...) / CONCAT_WS('-', a, b, c)\n【作用】安全拼接字符串，自动将 NULL 转为空串且无需手动 CAST 数字；CONCAT_WS 自动跳过 NULL 分隔符。",
+    "sql": "SELECT CONCAT_WS(N' - ', Country, Province, City) AS FullLoc FROM dbo.DimStore;",
+    "pitfall": "用 `+` 拼接时只要有 1 个 NULL 整个结果就会变成 NULL，生产拼接一律用 CONCAT / CONCAT_WS。"
+  },
+  {
+    "title": "SQL 核心语法：OPENJSON / JSON_VALUE / JSON_QUERY / FOR JSON",
+    "category": "语法字典 · 字符串与JSON",
+    "keywords": [
+      "OPENJSON / JSON_VALUE / JSON_QUERY / FOR JSON",
+      "字符串与JSON",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】OPENJSON(@json) WITH (col type '$.path')\n【作用】JSON_VALUE 提取标量，JSON_QUERY 提取对象/数组，OPENJSON 拆表，FOR JSON 将查询结果序列化为 JSON。",
+    "sql": "SELECT JSON_VALUE(Payload, '$.user.name') AS UserName\nFROM dbo.WebhookLogs\nWHERE ISJSON(Payload) = 1;",
+    "pitfall": "JSON_VALUE 返回值最大 4000 字符且遇到对象/数组会返回 NULL（需用 JSON_QUERY）。"
+  },
+  {
+    "title": "SQL 核心语法：OUTPUT 子句",
+    "category": "语法字典 · DML与事务",
+    "keywords": [
+      "OUTPUT 子句",
+      "DML与事务",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】INSERT/UPDATE/DELETE ... OUTPUT inserted.*, deleted.* INTO @log\n【作用】在单条 DML 执行的同时原子捕获受影响的旧值/新值（如刚生成的自增主键），用于审计日志。",
+    "sql": "UPDATE dbo.FactOrders\nSET OrderStatus = 'Shipped'\nOUTPUT deleted.OrderID, deleted.OrderStatus, inserted.OrderStatus\nWHERE OrderID = 1001;",
+    "pitfall": "若目标表有触发器，OUTPUT 不能直接输出到客户端，必须加 INTO @TableVar。"
+  },
+  {
+    "title": "SQL 核心语法：TRUNCATE TABLE vs DELETE",
+    "category": "语法字典 · DML与事务",
+    "keywords": [
+      "TRUNCATE TABLE vs DELETE",
+      "DML与事务",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】TRUNCATE TABLE dbo.StgTable;\n【作用】按数据页极速清空整表并重置自增种子，几乎不写逐行日志。",
+    "sql": "TRUNCATE TABLE dbo.StgDailyImport;",
+    "pitfall": "表被外键引用时无法 TRUNCATE；TRUNCATE 虽极快但在 SQL Server 中仍支持事务回滚（并非不可回滚）。"
+  },
+  {
+    "title": "SQL 核心语法：MERGE",
+    "category": "语法字典 · DML与事务",
+    "keywords": [
+      "MERGE",
+      "DML与事务",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】MERGE target WITH (HOLDLOCK) USING source ON ... WHEN MATCHED ...;\n【作用】单语句完成存在则更新、不存在则插入（UPSERT）。",
+    "sql": "MERGE dbo.DimProd WITH (HOLDLOCK) AS t USING dbo.StgProd AS s ON t.SKU = s.SKU\nWHEN MATCHED THEN UPDATE SET t.Price = s.Price\nWHEN NOT MATCHED THEN INSERT (SKU, Price) VALUES (s.SKU, s.Price);",
+    "pitfall": "高并发必须加 WITH (HOLDLOCK) 防主键冲突，且语句末尾必须带分号。"
+  },
+  {
+    "title": "SQL 核心语法：SET XACT_ABORT ON + TRY...CATCH",
+    "category": "语法字典 · DML与事务",
+    "keywords": [
+      "SET XACT_ABORT ON + TRY...CATCH",
+      "DML与事务",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SET XACT_ABORT ON; BEGIN TRY BEGIN TRAN; ... COMMIT; END TRY BEGIN CATCH IF @@TRANCOUNT > 0 ROLLBACK; THROW; END CATCH\n【作用】生产级事务异常处理黄金模板，确保任何运行时错误都能自动回滚释放锁。",
+    "sql": "SET XACT_ABORT ON;\nBEGIN TRY\n    BEGIN TRAN;\n    UPDATE dbo.Accounts SET Balance -= 100 WHERE ID = 1;\n    UPDATE dbo.Accounts SET Balance += 100 WHERE ID = 2;\n    COMMIT TRAN;\nEND TRY\nBEGIN CATCH\n    IF @@TRANCOUNT > 0 ROLLBACK TRAN;\n    THROW;\nEND CATCH;",
+    "pitfall": "不设 XACT_ABORT ON 时，部分运行时错误（如超时取消）不会自动回滚未提交事务，会导致孤儿锁阻塞全库！"
+  },
+  {
+    "title": "SQL 核心语法：READ_COMMITTED_SNAPSHOT (RCSI)",
+    "category": "语法字典 · DML与事务",
+    "keywords": [
+      "READ_COMMITTED_SNAPSHOT (RCSI)",
+      "DML与事务",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】ALTER DATABASE db SET READ_COMMITTED_SNAPSHOT ON;\n【作用】基于 TempDB 行版本控制的读已提交隔离级别，实现读写互不阻塞且无脏读。",
+    "sql": "SELECT is_read_committed_snapshot_on FROM sys.databases WHERE name = DB_NAME();",
+    "pitfall": "替代 WITH (NOLOCK) 的唯一正道；开启前需确保 TempDB 磁盘空间与 IOPS 充足。"
+  },
+  {
+    "title": "SQL 核心语法：CLUSTERED vs NONCLUSTERED INDEX",
+    "category": "语法字典 · 索引与执行计划",
+    "keywords": [
+      "CLUSTERED vs NONCLUSTERED INDEX",
+      "索引与执行计划",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】CREATE [CLUSTERED|NONCLUSTERED] INDEX ix ON tbl(cols) INCLUDE (...)\n【作用】聚集索引决定表的物理存储顺序（每表仅 1 个）；非聚集索引是独立 B 树并指向聚集键。",
+    "sql": "CREATE NONCLUSTERED INDEX IX_Orders_Date ON dbo.FactOrders(OrderDate) INCLUDE (Amount);",
+    "pitfall": "聚集键应遵循“窄、唯一、静态、递增”（如 INT/BIGINT IDENTITY），严禁拿随机 GUID 当聚集主键导致严重页分裂。"
+  },
+  {
+    "title": "SQL 核心语法：CLUSTERED COLUMNSTORE INDEX (CCI)",
+    "category": "语法字典 · 索引与执行计划",
+    "keywords": [
+      "CLUSTERED COLUMNSTORE INDEX (CCI)",
+      "索引与执行计划",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】CREATE CLUSTERED COLUMNSTORE INDEX CCI_FactSales ON dbo.FactSales;\n【作用】列式压缩存储索引，数仓千万/亿级事实表聚合分析提速 10~100 倍、压缩比达 10x。",
+    "sql": "CREATE CLUSTERED COLUMNSTORE INDEX CCI_FactSales ON dbo.FactSales;",
+    "pitfall": "适合批量写入+大范围聚合（OLAP），不适合高频单行 UPDATE/DELETE（会产生大量 Delta Store 碎片）。"
+  },
+  {
+    "title": "SQL 核心语法：SET STATISTICS IO, TIME ON",
+    "category": "语法字典 · 索引与执行计划",
+    "keywords": [
+      "SET STATISTICS IO, TIME ON",
+      "索引与执行计划",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SET STATISTICS IO, TIME ON;\n【作用】开启会话级 I/O（逻辑读 Logical Reads）与 CPU/耗时统计，量化 SQL 调优前后真实收益。",
+    "sql": "SET STATISTICS IO, TIME ON;\nSELECT CustomerID, SUM(Amount) FROM dbo.FactOrders GROUP BY CustomerID;",
+    "pitfall": "调优核心看 Logical Reads（逻辑读越低越好），不要只看单次执行时间（易受缓存冷热干扰）。"
+  },
+  {
+    "title": "SQL 核心语法：OPTION (RECOMPILE / MAXDOP)",
+    "category": "语法字典 · 索引与执行计划",
+    "keywords": [
+      "OPTION (RECOMPILE / MAXDOP)",
+      "索引与执行计划",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】SELECT ... OPTION (RECOMPILE, MAXDOP 4);\n【作用】RECOMPILE 针对当次参数实时编译最优计划防参数嗅探；MAXDOP 限制单查询最大并行核数防打满 CPU。",
+    "sql": "SELECT OrderID, Amount FROM dbo.FactOrders WHERE CustomerID = @CustID OPTION (RECOMPILE);",
+    "pitfall": "高频 OLTP 接口慎用 RECOMPILE，以免编译 CPU 成为新瓶颈。"
+  },
+  {
+    "title": "SQL 核心语法：sp_executesql & QUOTENAME",
+    "category": "语法字典 · 安全与动态SQL",
+    "keywords": [
+      "sp_executesql & QUOTENAME",
+      "安全与动态SQL",
+      "SQL",
+      "T-SQL",
+      "语法字典"
+    ],
+    "scenario": "【语法】EXEC sys.sp_executesql @stmt, @params, @p1 = @v1;\n【作用】强类型参数化执行动态 SQL，彻底防御 SQL 注入并支持计划缓存复用。",
+    "sql": "DECLARE @s NVARCHAR(MAX) = N'SELECT * FROM dbo.' + QUOTENAME(@tbl) + N' WHERE ID = @id';\nEXEC sys.sp_executesql @s, N'@id INT', @id = 42;",
+    "pitfall": "表名/列名不能用 @参数 替代，必须用 QUOTENAME() 校验包裹后再拼接。"
   }
 ]
