@@ -81,10 +81,11 @@
 写法规范：
 【弱信号捕捉】：拒绝列举普通热度涨跌。必须捕捉 1~2 个排名不高但具有早期颠覆性/风向标意义的技术突破、政策试探或平台温差信号。无明显弱信号填“暂无显著颠覆性弱信号”。
 
-### 4. rss_insights — 垂直与海外认知增量（100字以内）
-任务：萃取海外源（如 Hacker News、Yahoo Finance 等）带来的海外视角与技术增量。
+### 4. rss_insights — SQL / Power BI / AI 定向技术情报深度总结（220字以内）
+任务：深度总结分析定向 RSS 源（SQL Server 官方、Brent Ozar、MSSQLTips、SQLBI、Power BI 官方、Chris Webb、OpenAI、Google AI、Hugging Face）的最新文章与模型发布动态，严禁简单罗列标题！
 写法规范：
-【认知纠偏】：海外/专业视角如何纠正大众媒体的常识误区，补充关键技术内幕或产业数据。无RSS数据时填“暂无海外RSS增量”。
+【SQL与BI核心动态】：提炼 SQL Server 调优、T-SQL、Power BI、SQLBI/DAX 的最新特性或实战最佳实践（1~2条，说明解决什么痛点）。
+【AI模型与工程前沿】：提炼 OpenAI / Google AI / Hugging Face 的新模型发布或工具链演进，指出对数据工程与 BI 自动化的实质影响。无RSS数据时填“暂无定向技术源更新”。
 
 ### 5. outlook_strategy — 蝴蝶效应推演与决策行动（180字以内）
 任务：严密的因果链传导与可落地的行动指南。所有因果链条必须给出明确事实依据。

@@ -129,7 +129,7 @@ DEFAULT_BATCH_SIZES = {
 }
 
 # 默认区域顺序
-DEFAULT_REGION_ORDER = ["worldmonitor", "hotlist", "rss", "new_items", "standalone", "ai_analysis", "github", "dax"]
+DEFAULT_REGION_ORDER = ["worldmonitor", "hotlist", "rss", "new_items", "standalone", "ai_analysis", "github", "sql", "dax"]
 
 
 def split_content_into_batches(
@@ -925,6 +925,13 @@ def split_content_into_batches(
             # 处理 GitHub 热门项目
             current_batch, current_batch_has_content, batches = _process_github_section(
                 github_items, format_type, feishu_separator,
+                current_batch, current_batch_has_content, batches, add_separator,
+                max_bytes=max_bytes
+            )
+        elif region == "sql":
+            # 处理每日 SQL 实战语法精粹
+            current_batch, current_batch_has_content, batches = _process_sql_section(
+                format_type, feishu_separator,
                 current_batch, current_batch_has_content, batches, add_separator,
                 max_bytes=max_bytes
             )
@@ -2254,6 +2261,94 @@ def _format_dax_tip_text(tip: Dict[str, str], format_type: str) -> str:
             lines.pop()
 
         return "\n".join(lines)
+
+
+def _get_random_sql_tip() -> Optional[Dict]:
+    """从 sql_tips.json 随机抽取一条 SQL 实战语法精粹"""
+    import json
+    import random
+    from pathlib import Path
+
+    tip_file = Path(__file__).resolve().parent.parent / "data" / "sql_tips.json"
+    if not tip_file.exists():
+        return None
+    try:
+        tips = json.loads(tip_file.read_text(encoding="utf-8-sig"))
+        if isinstance(tips, list) and tips:
+            return random.choice(tips)
+    except Exception:
+        pass
+    return None
+
+
+def _format_sql_tip_text(tip: Dict, format_type: str) -> str:
+    """按平台格式化每日 SQL 实战语法卡片"""
+    import html as _html
+
+    title = tip.get("title", "")
+    category = tip.get("category", "SQL 实战")
+    scenario = tip.get("scenario", "")
+    sql_code = tip.get("sql", "")
+    pitfall = tip.get("pitfall", "")
+
+    if format_type == "telegram":
+        parts = [f"🗄️ <b>每日 SQL 实战精粹 · {_html.escape(category)}</b>"]
+        parts.append(f"<b>{_html.escape(title)}</b>")
+        if scenario:
+            parts.append(f"• <b>适用场景</b>：{_html.escape(scenario)}")
+        if sql_code:
+            parts.append(f'<pre><code class="language-sql">{_html.escape(sql_code)}</code></pre>')
+        if pitfall:
+            parts.append(f"• <b>避坑要点</b>：{_html.escape(pitfall)}")
+        return "\n\n".join(parts)
+
+    parts = [f"🗄️ **每日 SQL 实战精粹 · {category}**", f"**{title}**"]
+    if scenario:
+        parts.append(f"• **适用场景**：{scenario}")
+    if sql_code:
+        parts.append(f"```sql\n{sql_code}\n```")
+    if pitfall:
+        parts.append(f"• **避坑要点**：{pitfall}")
+    return "\n\n".join(parts)
+
+
+def _process_sql_section(
+    format_type: str,
+    feishu_separator: str,
+    current_batch: str,
+    current_batch_has_content: bool,
+    batches: list,
+    add_separator: bool = True,
+    max_bytes: int = 4000,
+) -> Tuple[str, bool, list]:
+    """处理每日 SQL 实战语法区块"""
+    tip = _get_random_sql_tip()
+    if not tip:
+        return current_batch, current_batch_has_content, batches
+
+    sql_text = _format_sql_tip_text(tip, format_type)
+    if not sql_text:
+        return current_batch, current_batch_has_content, batches
+
+    separator = ""
+    if add_separator and current_batch_has_content:
+        if format_type == "feishu":
+            separator = f"\n{feishu_separator}\n\n"
+        elif format_type == "dingtalk":
+            separator = "\n---\n\n"
+        else:
+            separator = "\n\n"
+
+    section_content = separator + sql_text if current_batch_has_content else sql_text
+    if len((current_batch + section_content).encode("utf-8")) > max_bytes and current_batch_has_content:
+        batches.append(current_batch)
+        current_batch = sql_text
+        current_batch_has_content = True
+    else:
+        current_batch += section_content
+        current_batch_has_content = True
+
+    return current_batch, current_batch_has_content, batches
 
 
 def _process_dax_section(
