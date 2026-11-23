@@ -2,7 +2,7 @@ name: Keepalive Workflow
 
 on:
   schedule:
-    # 每 25 天在 00:00 (UTC) 自动触发一次，永久重置 GitHub 60 天无提交休眠倒计时
+    # 每 25 天在 00:00 (UTC) 自动触发一次，永久重置 GitHub 60 天无提交休眠倒计时。
     - cron: "0 0 */25 * *"
   workflow_dispatch:
 
