@@ -357,8 +357,8 @@ notification:
       msg_type: "markdown"            # 消息类型：markdown(群机器人) | text(个人微信应用)
 
     telegram:
-      bot_token: "***REMOVED***"
-      chat_id: "***REMOVED***"
+      bot_token: ""                     # 改用 Secrets: TELEGRAM_BOT_TOKEN
+      chat_id: ""                       # 改用 Secrets: TELEGRAM_CHAT_ID
 
     email:
       from: ""                        # 发件人邮箱地址
